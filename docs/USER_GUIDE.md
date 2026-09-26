@@ -67,13 +67,16 @@ Click the **How It Works** button to see an explanation of how the graph is draw
 
 ## Algorithm Explorer (Lines)
 
-### Selecting an Algorithm
-Click **DDA Line** or **Bresenham Line** at the top.
+### Selecting an Algorithm & View Mode
+- Click **DDA Line** to explore the DDA line algorithm with floating-point slope increments
+- Click **Bresenham Line** to explore Bresenham's integer decision variable line algorithm
+- Click **Split View** to view BOTH algorithms side-by-side simultaneously with synchronized step-by-step animation and comparative explanation panels!
 
 ### Setting Points
 1. Click anywhere in the plot area to set the **start point** (green)
 2. Click again to set the **end point** (red)
-3. The algorithm runs automatically
+3. In Split View, you can click in either plot to set endpoints
+4. The algorithms run automatically
 
 ### Animation Controls
 | Button | Action |
@@ -93,16 +96,20 @@ Click **DDA Line** or **Bresenham Line** at the top.
 | `Space` | Play/Pause |
 | `S` | Reset animation |
 | `G` | Toggle pixel grid |
+| `Arrow Keys` | Pan view in all 4 directions (Left/Right/Up/Down) |
+| `+` / `-` | Zoom in / Zoom out |
 
 ### Pixel Grid
 Toggle the pixel grid with the **Grid: ON/OFF** button or `G` key. When zoomed in, each raster cell appears as a visible square with coordinate labels.
 
-### Speed Control
-- **Slower**: Increases time between steps
-- **Faster**: Decreases time between steps
+### Interactive Speed Slider
+- Drag the **Speed slider** or click anywhere along the track between **Slow** and **Fast**
+- Default speed is set to a calm, educational 800ms per step
+- Adjustable in 50ms increments from 100ms (fast) to 2000ms (slow)
+- Displays current milliseconds in real-time
 
 ### Quiz Mode
-Press `Q` or click **Quiz** to test your understanding. The quiz asks: "Given the current pixel, what is the next pixel?" Choose from three options.
+Press `Q` or click **Quiz** in single view to test your understanding. The quiz asks: "Given the current pixel, what is the next pixel?" Choose from three options.
 
 ---
 
@@ -130,7 +137,7 @@ Watch the algorithm compute points in one octant, then see the 8-way symmetry:
 - The decision variable `d` and its updates
 
 ### Animation
-Same controls as Algorithm Explorer: Previous, Next, Play, Pause, Reset.
+Same controls as Algorithm Explorer: Previous, Next, Play, Pause, Reset. Use the **Speed slider** in the top toolbar to adjust animation speed between Slow (2000ms) and Fast (100ms).
 
 ---
 

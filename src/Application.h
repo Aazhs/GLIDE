@@ -242,6 +242,43 @@ public:
         glEnd();
     }
 
+    /* Draw a horizontal slider (track + thumb) */
+    static void drawSlider(float x, float y, float w, float h,
+                           float value, float minVal, float maxVal,
+                           bool invertRatio = false) {
+        /* Track background */
+        glColor3f(0.12f, 0.12f, 0.18f);
+        drawRect(x, y, w, h);
+
+        /* Track border */
+        glColor3f(Colors::DIM_R, Colors::DIM_G, Colors::DIM_B);
+        drawRectOutline(x, y, w, h);
+
+        /* Ratio calculation */
+        float ratio = (value - minVal) / (maxVal - minVal);
+        if (invertRatio) ratio = 1.0f - ratio;
+        if (ratio < 0.0f) ratio = 0.0f;
+        if (ratio > 1.0f) ratio = 1.0f;
+
+        /* Filled portion up to thumb */
+        float fillW = w * ratio;
+        glColor4f(Colors::ACCENT_R, Colors::ACCENT_G, Colors::ACCENT_B, 0.45f);
+        drawRect(x, y, fillW, h);
+
+        /* Thumb (draggable handle) */
+        float thumbW = 10.0f;
+        float thumbH = h + 8.0f;
+        float thumbX = x + fillW - thumbW / 2.0f;
+        if (thumbX < x) thumbX = x;
+        if (thumbX + thumbW > x + w) thumbX = x + w - thumbW;
+        float thumbY = y - 4.0f;
+
+        glColor3f(Colors::ACCENT_R, Colors::ACCENT_G, Colors::ACCENT_B);
+        drawRect(thumbX, thumbY, thumbW, thumbH);
+        glColor3f(1.0f, 1.0f, 1.0f);
+        drawRectOutline(thumbX, thumbY, thumbW, thumbH);
+    }
+
     /* Draw a pixel as a filled square (for pixel grid mode) */
     static void drawPixelSquare(float x, float y, float cellSize) {
         drawRect(x - cellSize/2, y - cellSize/2, cellSize, cellSize);
@@ -448,6 +485,9 @@ private:
     /* How It Works panel */
     bool showHowItWorks;
 
+    /* Slider dragging state */
+    bool draggingSlider;
+
 public:
     Application() :
         currentState(STATE_MAIN_MENU),
@@ -459,7 +499,7 @@ public:
         settingStartPoint(true),
         algoCurrentStep(0),
         algoAnimState(ANIM_STOPPED),
-        animSpeed(600),
+        animSpeed(800),
         showPixelGrid(true),
         splitView(false),
         algoCurrentStep2(0),
@@ -472,21 +512,25 @@ public:
         quizSelectedAnswer(-1),
         quizAnswered(false),
         hoveredButton(-1),
-        showHowItWorks(false)
+        showHowItWorks(false),
+        draggingSlider(false)
     {
         inputExpression = "sin(x)";
         algoStartPoint = Point(2, 2);
         algoEndPoint = Point(12, 8);
         circleCenter = Point(0, 0);
 
-        /* Set up coordinate systems for explorers */
+        /* Set up coordinate systems for explorers.
+         * plotAreaY = 100 leaves room for 55px header + 40px toolbar + 5px padding */
         algoCoordSystem.scaleX = 30.0f;
         algoCoordSystem.scaleY = 30.0f;
         algoCoordSystem.zoom = 1.5f;
+        algoCoordSystem.plotAreaY = 100;
 
         circleCoordSystem.scaleX = 25.0f;
         circleCoordSystem.scaleY = 25.0f;
         circleCoordSystem.zoom = 1.5f;
+        circleCoordSystem.plotAreaY = 100;
     }
 
     /* ============================================================
@@ -534,11 +578,15 @@ public:
 
         algoCoordSystem.screenWidth = w;
         algoCoordSystem.screenHeight = h;
+        algoCoordSystem.plotAreaX = 10;
+        algoCoordSystem.plotAreaY = 100;
         algoCoordSystem.plotAreaW = w - 380;
         algoCoordSystem.plotAreaH = h - 160;
 
         circleCoordSystem.screenWidth = w;
         circleCoordSystem.screenHeight = h;
+        circleCoordSystem.plotAreaX = 10;
+        circleCoordSystem.plotAreaY = 100;
         circleCoordSystem.plotAreaW = w - 380;
         circleCoordSystem.plotAreaH = h - 160;
     }
@@ -1080,63 +1128,66 @@ public:
         glColor3f(Colors::PANEL_R, Colors::PANEL_G, Colors::PANEL_B);
         Renderer::drawRect(0, 55, (float)windowWidth, 40);
 
-        buttons.push_back(Button(10, 62, 100, 26, "DDA Line", 201));
-        buttons.push_back(Button(115, 62, 130, 26, "Bresenham Line", 202));
+        buttons.push_back(Button(10, 62, 90, 26, "DDA Line", 201));
+        buttons.push_back(Button(106, 62, 120, 26, "Bresenham Line", 202));
+        buttons.push_back(Button(232, 62, 90, 26,
+            splitView ? "Single View" : "Split View", 206));
+        buttons.push_back(Button(328, 62, 80, 26,
+            showPixelGrid ? "Grid: ON" : "Grid: OFF", 203));
 
-        /* In single view, highlight the active algorithm */
+        /* Active algorithm visual highlight */
         if (!splitView) {
             buttons[1].active = (currentAlgo == ALGO_DDA_LINE);
             buttons[2].active = (currentAlgo == ALGO_BRESENHAM_LINE);
+            buttons[3].active = false;
         } else {
-            /* In split view, both are shown */
-            buttons[1].active = true;
-            buttons[2].active = true;
+            buttons[1].active = false;
+            buttons[2].active = false;
+            buttons[3].active = true;
         }
-
-        /* Pixel grid toggle */
-        buttons.push_back(Button(260, 62, 90, 26,
-            showPixelGrid ? "Grid: ON" : "Grid: OFF", 203));
-        buttons[3].active = showPixelGrid;
-
-        /* Speed controls */
-        buttons.push_back(Button(360, 62, 60, 26, "Slower", 204));
-        buttons.push_back(Button(425, 62, 60, 26, "Faster", 205));
-
-        /* Split view toggle */
-        buttons.push_back(Button(500, 62, 100, 26,
-            splitView ? "Single View" : "Split View", 206));
-        buttons.back().active = splitView;
+        buttons[4].active = showPixelGrid;
 
         for (size_t i = 1; i < buttons.size(); i++) {
             Renderer::drawButton(buttons[i]);
         }
 
+        /* Speed slider */
+        float trackX = 505.0f, trackY = 68.0f, trackW = 130.0f, trackH = 14.0f;
+        glColor3f(Colors::TEXT_R, Colors::TEXT_G, Colors::TEXT_B);
+        Renderer::drawSmallText(420, 78, "Speed:");
         glColor3f(Colors::DIM_R, Colors::DIM_G, Colors::DIM_B);
-        Renderer::drawSmallText(615, 80,
-            "Speed: " + std::to_string(animSpeed) + "ms | Click to set points");
+        Renderer::drawSmallText(468, 78, "Slow");
+        Renderer::drawSlider(trackX, trackY, trackW, trackH,
+                             (float)animSpeed, 100.0f, 2000.0f, true);
+        glColor3f(Colors::DIM_R, Colors::DIM_G, Colors::DIM_B);
+        Renderer::drawSmallText(trackX + trackW + 8, 78, "Fast");
+        glColor3f(Colors::ACCENT_R, Colors::ACCENT_G, Colors::ACCENT_B);
+        Renderer::drawSmallText(trackX + trackW + 38, 78, std::to_string(animSpeed) + "ms");
+
+        glColor3f(Colors::DIM_R, Colors::DIM_G, Colors::DIM_B);
+        Renderer::drawSmallText(trackX + trackW + 95, 78, "Click plot to set points");
 
         if (splitView) {
             /* ==================== SPLIT VIEW ==================== */
-            /* Left half: DDA, Right half: Bresenham */
-            int halfW = (cs.plotAreaW - 10) / 2;
+            /* Both algorithms displayed side-by-side with synchronized animation */
+            int splitPlotH = windowHeight - 340;
+            if (splitPlotH < 220) splitPlotH = 220;
+            int halfW = (windowWidth - 30) / 2;
 
             /* --- LEFT PLOT (DDA) --- */
-            int leftPlotX = cs.plotAreaX;
+            int leftPlotX = 10;
             glColor3f(Colors::BG_R, Colors::BG_G, Colors::BG_B);
             Renderer::drawRect((float)leftPlotX, (float)cs.plotAreaY,
-                              (float)halfW, (float)cs.plotAreaH);
-
-            /* DDA label */
-            glColor3f(Colors::ACCENT_R, Colors::ACCENT_G, Colors::ACCENT_B);
-            Renderer::drawText((float)(leftPlotX + 5), (float)(cs.plotAreaY + 15), "DDA Line");
+                              (float)halfW, (float)splitPlotH);
 
             CoordinateSystem leftCS = cs;
             leftCS.plotAreaX = leftPlotX;
             leftCS.plotAreaW = halfW;
+            leftCS.plotAreaH = splitPlotH;
 
             glEnable(GL_SCISSOR_TEST);
-            glScissor(leftPlotX, windowHeight - cs.plotAreaY - cs.plotAreaH,
-                     halfW, cs.plotAreaH);
+            glScissor(leftPlotX, windowHeight - cs.plotAreaY - splitPlotH,
+                     halfW, splitPlotH);
 
             Renderer::drawGrid(leftCS);
             if (showPixelGrid) {
@@ -1157,24 +1208,24 @@ public:
 
             glDisable(GL_SCISSOR_TEST);
 
+            /* DDA title label */
+            glColor3f(Colors::ACCENT_R, Colors::ACCENT_G, Colors::ACCENT_B);
+            Renderer::drawText((float)(leftPlotX + 8), (float)(cs.plotAreaY + 18), "DDA Line (Floating-point increments)");
+
             /* --- RIGHT PLOT (Bresenham) --- */
             int rightPlotX = leftPlotX + halfW + 10;
             glColor3f(Colors::BG_R, Colors::BG_G, Colors::BG_B);
             Renderer::drawRect((float)rightPlotX, (float)cs.plotAreaY,
-                              (float)halfW, (float)cs.plotAreaH);
-
-            /* Bresenham label */
-            glColor3f(Colors::ACCENT2_R, Colors::ACCENT2_G, Colors::ACCENT2_B);
-            Renderer::drawText((float)(rightPlotX + 5), (float)(cs.plotAreaY + 15),
-                "Bresenham Line");
+                              (float)halfW, (float)splitPlotH);
 
             CoordinateSystem rightCS = cs;
             rightCS.plotAreaX = rightPlotX;
             rightCS.plotAreaW = halfW;
+            rightCS.plotAreaH = splitPlotH;
 
             glEnable(GL_SCISSOR_TEST);
-            glScissor(rightPlotX, windowHeight - cs.plotAreaY - cs.plotAreaH,
-                     halfW, cs.plotAreaH);
+            glScissor(rightPlotX, windowHeight - cs.plotAreaY - splitPlotH,
+                     halfW, splitPlotH);
 
             Renderer::drawGrid(rightCS);
             if (showPixelGrid) {
@@ -1195,15 +1246,19 @@ public:
 
             glDisable(GL_SCISSOR_TEST);
 
+            /* Bresenham title label */
+            glColor3f(Colors::ACCENT2_R, Colors::ACCENT2_G, Colors::ACCENT2_B);
+            Renderer::drawText((float)(rightPlotX + 8), (float)(cs.plotAreaY + 18), "Bresenham Line (Integer decision variable)");
+
             /* Divider line */
             glColor3f(Colors::DIM_R, Colors::DIM_G, Colors::DIM_B);
             glBegin(GL_LINES);
             glVertex2f((float)(leftPlotX + halfW + 5), (float)cs.plotAreaY);
-            glVertex2f((float)(leftPlotX + halfW + 5), (float)(cs.plotAreaY + cs.plotAreaH));
+            glVertex2f((float)(leftPlotX + halfW + 5), (float)(cs.plotAreaY + splitPlotH));
             glEnd();
 
             /* Info panels below the plot area (side by side) */
-            float infoPanelY = (float)(cs.plotAreaY + cs.plotAreaH + 5);
+            float infoPanelY = (float)(cs.plotAreaY + splitPlotH + 8);
             float infoPanelH = (float)(windowHeight - infoPanelY - 55);
 
             /* Left info (DDA) */
@@ -1360,11 +1415,11 @@ public:
         glColor3f(Colors::PANEL_R, Colors::PANEL_G, Colors::PANEL_B);
         Renderer::drawRect(0, 55, (float)windowWidth, 40);
 
-        buttons.push_back(Button(10, 62, 120, 26, "DDA Circle", 301));
-        buttons.push_back(Button(135, 62, 150, 26, "Bresenham Circle", 302));
-        buttons.push_back(Button(300, 62, 60, 26, "R +", 303));
-        buttons.push_back(Button(365, 62, 60, 26, "R -", 304));
-        buttons.push_back(Button(440, 62, 110, 26,
+        buttons.push_back(Button(10, 62, 100, 26, "DDA Circle", 301));
+        buttons.push_back(Button(116, 62, 135, 26, "Bresenham Circle", 302));
+        buttons.push_back(Button(257, 62, 40, 26, "R +", 303));
+        buttons.push_back(Button(303, 62, 40, 26, "R -", 304));
+        buttons.push_back(Button(349, 62, 80, 26,
             showPixelGrid ? "Grid: ON" : "Grid: OFF", 305));
 
         buttons[1].active = (currentCircle == CIRCLE_DDA);
@@ -1375,10 +1430,23 @@ public:
             Renderer::drawButton(buttons[i]);
         }
 
+        /* Speed slider */
+        float trackX = 525.0f, trackY = 68.0f, trackW = 130.0f, trackH = 14.0f;
+        glColor3f(Colors::TEXT_R, Colors::TEXT_G, Colors::TEXT_B);
+        Renderer::drawSmallText(440, 78, "Speed:");
+        glColor3f(Colors::DIM_R, Colors::DIM_G, Colors::DIM_B);
+        Renderer::drawSmallText(488, 78, "Slow");
+        Renderer::drawSlider(trackX, trackY, trackW, trackH,
+                             (float)animSpeed, 100.0f, 2000.0f, true);
+        glColor3f(Colors::DIM_R, Colors::DIM_G, Colors::DIM_B);
+        Renderer::drawSmallText(trackX + trackW + 8, 78, "Fast");
+        glColor3f(Colors::ACCENT_R, Colors::ACCENT_G, Colors::ACCENT_B);
+        Renderer::drawSmallText(trackX + trackW + 38, 78, std::to_string(animSpeed) + "ms");
+
         glColor3f(Colors::DIM_R, Colors::DIM_G, Colors::DIM_B);
         std::ostringstream rStr;
         rStr << "Radius: " << circleRadius;
-        Renderer::drawSmallText(560, 80, rStr.str());
+        Renderer::drawSmallText(trackX + trackW + 90, 78, rStr.str());
 
         /* Plot area */
         glColor3f(Colors::BG_R, Colors::BG_G, Colors::BG_B);
@@ -1906,23 +1974,13 @@ public:
 
         /*
          * Arrow key panning:
-         * LEFT  → decrease panX → show content to the left
-         * RIGHT → increase panX → show content to the right
-         * UP    → increase panY → show content above
-         * DOWN  → decrease panY → show content below
+         * LEFT  → pan(-panAmount, 0) → moves left
+         * RIGHT → pan(panAmount, 0)  → moves right
+         * UP    → pan(0, panAmount)  → moves up
+         * DOWN  → pan(0, -panAmount) → moves down
          */
         switch (key) {
             case GLUT_KEY_LEFT:
-                if (currentState == STATE_GRAPH_PLOTTER) {
-                    plotter.getCoordSystem().pan(panAmount, 0);
-                    if (plotter.graphExists()) plotter.computeGraph();
-                } else if (currentState == STATE_ALGORITHM_EXPLORER) {
-                    algoCoordSystem.pan(panAmount, 0);
-                } else if (currentState == STATE_CIRCLE_EXPLORER) {
-                    circleCoordSystem.pan(panAmount, 0);
-                }
-                break;
-            case GLUT_KEY_RIGHT:
                 if (currentState == STATE_GRAPH_PLOTTER) {
                     plotter.getCoordSystem().pan(-panAmount, 0);
                     if (plotter.graphExists()) plotter.computeGraph();
@@ -1930,6 +1988,16 @@ public:
                     algoCoordSystem.pan(-panAmount, 0);
                 } else if (currentState == STATE_CIRCLE_EXPLORER) {
                     circleCoordSystem.pan(-panAmount, 0);
+                }
+                break;
+            case GLUT_KEY_RIGHT:
+                if (currentState == STATE_GRAPH_PLOTTER) {
+                    plotter.getCoordSystem().pan(panAmount, 0);
+                    if (plotter.graphExists()) plotter.computeGraph();
+                } else if (currentState == STATE_ALGORITHM_EXPLORER) {
+                    algoCoordSystem.pan(panAmount, 0);
+                } else if (currentState == STATE_CIRCLE_EXPLORER) {
+                    circleCoordSystem.pan(panAmount, 0);
                 }
                 break;
             case GLUT_KEY_UP:
@@ -1962,6 +2030,18 @@ public:
      * ============================================================ */
     void mouseClick(int button, int state, int mx, int my) {
         if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
+            /* Check speed slider (in Algorithm Explorer or Circle Explorer toolbar) */
+            float tx, ty, tw, th;
+            if (getSliderTrack(tx, ty, tw, th)) {
+                if (mx >= tx - 10 && mx <= tx + tw + 10 &&
+                    my >= ty - 8 && my <= ty + th + 8) {
+                    draggingSlider = true;
+                    updateSliderFromMouse(mx);
+                    glutPostRedisplay();
+                    return;
+                }
+            }
+
             /* Check all buttons */
             for (auto& btn : buttons) {
                 if (btn.contains(mx, my)) {
@@ -1974,21 +2054,66 @@ public:
             /* Check if clicking in plot area for point selection */
             if (currentState == STATE_ALGORITHM_EXPLORER) {
                 CoordinateSystem& cs = algoCoordSystem;
-                if (mx >= cs.plotAreaX && mx <= cs.plotAreaX + cs.plotAreaW &&
-                    my >= cs.plotAreaY && my <= cs.plotAreaY + cs.plotAreaH) {
-                    float worldX = cs.screenToWorldX((float)mx);
-                    float worldY = cs.screenToWorldY((float)my);
-                    Point clicked(roundf(worldX), roundf(worldY));
+                if (splitView) {
+                    /* In split view, user can click in either the left (DDA) or right (Bresenham) plot */
+                    int splitPlotH = windowHeight - 340;
+                    if (splitPlotH < 220) splitPlotH = 220;
+                    int halfW = (windowWidth - 30) / 2;
+                    int leftPlotX = 10;
+                    int rightPlotX = leftPlotX + halfW + 10;
+                    float worldX = 0, worldY = 0;
+                    bool clickedInPlot = false;
 
-                    if (settingStartPoint) {
-                        algoStartPoint = clicked;
-                        settingStartPoint = false;
-                    } else {
-                        algoEndPoint = clicked;
-                        settingStartPoint = true;
-                        runCurrentLineAlgorithm();
+                    if (mx >= leftPlotX && mx <= leftPlotX + halfW &&
+                        my >= cs.plotAreaY && my <= cs.plotAreaY + splitPlotH) {
+                        CoordinateSystem leftCS = cs;
+                        leftCS.plotAreaX = leftPlotX;
+                        leftCS.plotAreaW = halfW;
+                        leftCS.plotAreaH = splitPlotH;
+                        worldX = leftCS.screenToWorldX((float)mx);
+                        worldY = leftCS.screenToWorldY((float)my);
+                        clickedInPlot = true;
+                    } else if (mx >= rightPlotX && mx <= rightPlotX + halfW &&
+                               my >= cs.plotAreaY && my <= cs.plotAreaY + splitPlotH) {
+                        CoordinateSystem rightCS = cs;
+                        rightCS.plotAreaX = rightPlotX;
+                        rightCS.plotAreaW = halfW;
+                        rightCS.plotAreaH = splitPlotH;
+                        worldX = rightCS.screenToWorldX((float)mx);
+                        worldY = rightCS.screenToWorldY((float)my);
+                        clickedInPlot = true;
                     }
-                    glutPostRedisplay();
+
+                    if (clickedInPlot) {
+                        Point clicked(roundf(worldX), roundf(worldY));
+                        if (settingStartPoint) {
+                            algoStartPoint = clicked;
+                            settingStartPoint = false;
+                        } else {
+                            algoEndPoint = clicked;
+                            settingStartPoint = true;
+                            runCurrentLineAlgorithm();
+                        }
+                        glutPostRedisplay();
+                    }
+                } else {
+                    /* Single view plot click */
+                    if (mx >= cs.plotAreaX && mx <= cs.plotAreaX + cs.plotAreaW &&
+                        my >= cs.plotAreaY && my <= cs.plotAreaY + cs.plotAreaH) {
+                        float worldX = cs.screenToWorldX((float)mx);
+                        float worldY = cs.screenToWorldY((float)my);
+                        Point clicked(roundf(worldX), roundf(worldY));
+
+                        if (settingStartPoint) {
+                            algoStartPoint = clicked;
+                            settingStartPoint = false;
+                        } else {
+                            algoEndPoint = clicked;
+                            settingStartPoint = true;
+                            runCurrentLineAlgorithm();
+                        }
+                        glutPostRedisplay();
+                    }
                 }
             }
             else if (currentState == STATE_CIRCLE_EXPLORER) {
@@ -2026,6 +2151,19 @@ public:
                 if (button == 3) circleCoordSystem.zoomIn();
                 else circleCoordSystem.zoomOut();
             }
+            glutPostRedisplay();
+        }
+
+        /* Mouse up: stop slider dragging */
+        if (button == GLUT_LEFT_BUTTON && state == GLUT_UP) {
+            draggingSlider = false;
+        }
+    }
+
+    /* Called when mouse moves with button held (active drag) */
+    void mouseDrag(int mx, int /*my*/) {
+        if (draggingSlider) {
+            updateSliderFromMouse(mx);
             glutPostRedisplay();
         }
     }
@@ -2105,34 +2243,19 @@ public:
 
             /* Algorithm explorer controls */
             case 201:
+                splitView = false;
                 currentAlgo = ALGO_DDA_LINE;
                 runCurrentLineAlgorithm();
                 break;
             case 202:
+                splitView = false;
                 currentAlgo = ALGO_BRESENHAM_LINE;
                 runCurrentLineAlgorithm();
                 break;
             case 203: showPixelGrid = !showPixelGrid; break;
-            case 204:
-                animSpeed += 100;
-                if (animSpeed > 3000) animSpeed = 3000;
-                break;
-            case 205:
-                animSpeed -= 100;
-                if (animSpeed < 100) animSpeed = 100;
-                break;
             case 206:
                 splitView = !splitView;
-                if (splitView) {
-                    /* Run both algorithms for comparison */
-                    ddaLine.setEndpoints(algoStartPoint, algoEndPoint);
-                    ddaLine.execute();
-                    bresenhamLine.setEndpoints(algoStartPoint, algoEndPoint);
-                    bresenhamLine.execute();
-                    algoCurrentStep = 0;
-                    algoCurrentStep2 = 0;
-                    algoAnimState = ANIM_STOPPED;
-                }
+                runCurrentLineAlgorithm();
                 break;
 
             case 210: prevStep(); break;
@@ -2395,6 +2518,39 @@ public:
 
     int getAnimSpeed() const { return animSpeed; }
 
+    /* Get slider track bounds for current state */
+    bool getSliderTrack(float& trackX, float& trackY, float& trackW, float& trackH) const {
+        if (currentState == STATE_ALGORITHM_EXPLORER) {
+            trackX = 505.0f;
+            trackY = 68.0f;
+            trackW = 130.0f;
+            trackH = 14.0f;
+            return true;
+        } else if (currentState == STATE_CIRCLE_EXPLORER) {
+            trackX = 525.0f;
+            trackY = 68.0f;
+            trackW = 130.0f;
+            trackH = 14.0f;
+            return true;
+        }
+        return false;
+    }
+
+    /* Update animation speed from mouse X position on slider */
+    void updateSliderFromMouse(int mx) {
+        float tx, ty, tw, th;
+        if (!getSliderTrack(tx, ty, tw, th)) return;
+        float ratio = ((float)mx - tx) / tw;
+        if (ratio < 0.0f) ratio = 0.0f;
+        if (ratio > 1.0f) ratio = 1.0f;
+        // Left is Slow (2000ms), Right is Fast (100ms)
+        animSpeed = (int)(2000.0f - ratio * 1900.0f);
+        // Snap to nearest 50ms
+        animSpeed = ((animSpeed + 25) / 50) * 50;
+        if (animSpeed < 100) animSpeed = 100;
+        if (animSpeed > 2000) animSpeed = 2000;
+    }
+
     /* ============================================================
      * QUIZ GENERATION
      * ============================================================ */
@@ -2466,7 +2622,10 @@ void mouseCallback(int btn, int state, int x, int y) {
     if (g_app) g_app->mouseClick(btn, state, x, y);
 }
 void motionCallback(int x, int y) {
-    if (g_app) g_app->mouseMove(x, y);
+    if (g_app) {
+        g_app->mouseDrag(x, y);
+        g_app->mouseMove(x, y);
+    }
 }
 void passiveMotionCallback(int x, int y) {
     if (g_app) g_app->mouseMove(x, y);
