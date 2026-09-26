@@ -28,15 +28,32 @@ Algorithm implementations are based on the algorithms taught in the provided cou
 
 ## Quick Start
 
+### macOS / Linux
 ```bash
-# Build
 mkdir build && cd build
 cmake ..
 cmake --build .
-
-# Run
 ./glide
 ```
+
+### Windows (Visual Studio)
+```cmd
+vcpkg install freeglut:x64-windows
+mkdir build && cd build
+cmake .. -G "Visual Studio 17 2022" -A x64
+cmake --build . --config Release
+.\Release\glide.exe
+```
+
+### Windows (MinGW)
+```cmd
+mkdir build && cd build
+cmake .. -G "MinGW Makefiles"
+cmake --build .
+glide.exe
+```
+
+> See [BUILD_AND_RUN.md](docs/BUILD_AND_RUN.md) for detailed setup instructions and troubleshooting.
 
 ## Features
 
