@@ -419,6 +419,10 @@ private:
     int animSpeed;                      // milliseconds per step
     bool showPixelGrid;
 
+    /* Split view: show both DDA and Bresenham side by side */
+    bool splitView;
+    int algoCurrentStep2;               // Step counter for second algorithm in split view
+
     /* Circle explorer */
     CircleMode currentCircle;
     DDACircle ddaCircle;
@@ -455,8 +459,10 @@ public:
         settingStartPoint(true),
         algoCurrentStep(0),
         algoAnimState(ANIM_STOPPED),
-        animSpeed(200),
+        animSpeed(600),
         showPixelGrid(true),
+        splitView(false),
+        algoCurrentStep2(0),
         currentCircle(CIRCLE_BRESENHAM),
         circleRadius(8.0f),
         circleCurrentStep(0),
@@ -922,6 +928,138 @@ public:
     /* ============================================================
      * ALGORITHM EXPLORER
      * ============================================================ */
+    /*
+     * Helper: draw one algorithm's visualization in a given plot region.
+     * Used by both single-view and split-view modes.
+     */
+    void drawAlgoVisualization(const CoordinateSystem& cs,
+                              const std::vector<AlgorithmStep>& steps,
+                              int currentStep,
+                              float plotR, float plotG, float plotB,
+                              float highlightR, float highlightG, float highlightB) {
+        if (steps.empty()) return;
+
+        float cellSize = cs.zoom * cs.scaleX;
+        bool useCells = showPixelGrid && cellSize >= 8.0f;
+
+        /* Draw completed steps */
+        for (int i = 0; i < currentStep && i < (int)steps.size(); i++) {
+            const auto& step = steps[i];
+            for (const auto& pt : step.plottedPoints) {
+                float sx = cs.worldToScreenX(pt.x);
+                float sy = cs.worldToScreenY(pt.y);
+                if (useCells) {
+                    glColor4f(plotR, plotG, plotB, 0.6f);
+                    Renderer::drawPixelSquare(sx, sy, cellSize - 2);
+                } else {
+                    glColor3f(plotR, plotG, plotB);
+                    Renderer::drawPixel(sx, sy, 4.0f);
+                }
+            }
+        }
+
+        /* Draw current step (highlighted) */
+        if (currentStep > 0 && currentStep <= (int)steps.size()) {
+            const auto& step = steps[currentStep - 1];
+            for (const auto& pt : step.plottedPoints) {
+                float sx = cs.worldToScreenX(pt.x);
+                float sy = cs.worldToScreenY(pt.y);
+                if (useCells) {
+                    glColor3f(highlightR, highlightG, highlightB);
+                    Renderer::drawPixelSquare(sx, sy, cellSize - 2);
+                    glColor3f(Colors::TEXT_R, Colors::TEXT_G, Colors::TEXT_B);
+                    Renderer::drawSmallText(sx - 10, sy - cellSize/2 - 5,
+                        pt.toPixelString());
+                } else {
+                    glColor3f(highlightR, highlightG, highlightB);
+                    Renderer::drawPixel(sx, sy, 8.0f);
+                }
+            }
+        }
+    }
+
+    /*
+     * Helper: draw the info panel for one algorithm.
+     * Returns the Y position after the last line drawn.
+     */
+    float drawAlgoInfoPanel(float panelX, float panelW, float startY, float maxY,
+                            const std::string& algoName, const std::string& desc,
+                            const std::vector<AlgorithmStep>& steps, int currentStep,
+                            bool showDecisionVar) {
+        float infoY = startY;
+
+        /* Algorithm name */
+        glColor3f(Colors::ACCENT_R, Colors::ACCENT_G, Colors::ACCENT_B);
+        Renderer::drawText(panelX + 10, infoY, algoName);
+        infoY += 22;
+
+        /* Algorithm description (word wrap) */
+        glColor3f(Colors::DIM_R, Colors::DIM_G, Colors::DIM_B);
+        std::string word;
+        std::istringstream descStream(desc);
+        std::string curLine;
+        int maxChars = (int)(panelW / 7);  // approximate chars per line
+        if (maxChars < 20) maxChars = 20;
+        while (descStream >> word) {
+            if ((int)(curLine.length() + word.length() + 1) > maxChars) {
+                Renderer::drawSmallText(panelX + 10, infoY, curLine);
+                infoY += 14;
+                curLine = word;
+            } else {
+                if (!curLine.empty()) curLine += " ";
+                curLine += word;
+            }
+        }
+        if (!curLine.empty()) {
+            Renderer::drawSmallText(panelX + 10, infoY, curLine);
+            infoY += 14;
+        }
+        infoY += 8;
+
+        /* Parameters */
+        glColor3f(Colors::TEXT_R, Colors::TEXT_G, Colors::TEXT_B);
+        Renderer::drawSmallText(panelX + 10, infoY,
+            "Start: " + algoStartPoint.toPixelString());
+        infoY += 16;
+        Renderer::drawSmallText(panelX + 10, infoY,
+            "End: " + algoEndPoint.toPixelString());
+        infoY += 18;
+
+        /* Step info */
+        if (!steps.empty()) {
+            glColor3f(Colors::ACCENT2_R, Colors::ACCENT2_G, Colors::ACCENT2_B);
+            std::ostringstream stepLabel;
+            stepLabel << "Step " << currentStep << " / " << steps.size();
+            Renderer::drawText(panelX + 10, infoY, stepLabel.str());
+            infoY += 20;
+
+            if (currentStep > 0 && currentStep <= (int)steps.size()) {
+                const auto& step = steps[currentStep - 1];
+                glColor3f(Colors::TEXT_R, Colors::TEXT_G, Colors::TEXT_B);
+
+                std::istringstream iss(step.explanation);
+                std::string line;
+                while (std::getline(iss, line) && infoY < maxY - 40) {
+                    Renderer::drawSmallText(panelX + 10, infoY, line);
+                    infoY += 14;
+                }
+                infoY += 6;
+
+                if (showDecisionVar) {
+                    glColor3f(Colors::YELLOW_R, Colors::YELLOW_G, Colors::YELLOW_B);
+                    std::ostringstream dv;
+                    dv << "e = " << (int)step.decisionVariable;
+                    Renderer::drawText(panelX + 10, infoY, dv.str());
+                    infoY += 16;
+                    glColor3f(Colors::TEXT_R, Colors::TEXT_G, Colors::TEXT_B);
+                    Renderer::drawSmallText(panelX + 10, infoY, step.decision);
+                    infoY += 14;
+                }
+            }
+        }
+        return infoY;
+    }
+
     void renderAlgorithmExplorer() {
         buttons.clear();
         CoordinateSystem& cs = algoCoordSystem;
@@ -938,227 +1076,260 @@ public:
         buttons.push_back(Button(windowWidth - 90, 10, 80, 30, "< Back", 100));
         Renderer::drawButton(buttons.back());
 
-        /* Algorithm selection */
+        /* Algorithm selection toolbar */
         glColor3f(Colors::PANEL_R, Colors::PANEL_G, Colors::PANEL_B);
         Renderer::drawRect(0, 55, (float)windowWidth, 40);
 
         buttons.push_back(Button(10, 62, 100, 26, "DDA Line", 201));
         buttons.push_back(Button(115, 62, 130, 26, "Bresenham Line", 202));
 
-        buttons[1].active = (currentAlgo == ALGO_DDA_LINE);
-        buttons[2].active = (currentAlgo == ALGO_BRESENHAM_LINE);
+        /* In single view, highlight the active algorithm */
+        if (!splitView) {
+            buttons[1].active = (currentAlgo == ALGO_DDA_LINE);
+            buttons[2].active = (currentAlgo == ALGO_BRESENHAM_LINE);
+        } else {
+            /* In split view, both are shown */
+            buttons[1].active = true;
+            buttons[2].active = true;
+        }
 
         /* Pixel grid toggle */
-        buttons.push_back(Button(260, 62, 110, 26,
+        buttons.push_back(Button(260, 62, 90, 26,
             showPixelGrid ? "Grid: ON" : "Grid: OFF", 203));
         buttons[3].active = showPixelGrid;
 
         /* Speed controls */
-        buttons.push_back(Button(385, 62, 60, 26, "Slower", 204));
-        buttons.push_back(Button(450, 62, 60, 26, "Faster", 205));
+        buttons.push_back(Button(360, 62, 60, 26, "Slower", 204));
+        buttons.push_back(Button(425, 62, 60, 26, "Faster", 205));
+
+        /* Split view toggle */
+        buttons.push_back(Button(500, 62, 100, 26,
+            splitView ? "Single View" : "Split View", 206));
+        buttons.back().active = splitView;
 
         for (size_t i = 1; i < buttons.size(); i++) {
             Renderer::drawButton(buttons[i]);
         }
 
         glColor3f(Colors::DIM_R, Colors::DIM_G, Colors::DIM_B);
-        Renderer::drawSmallText(520, 80,
+        Renderer::drawSmallText(615, 80,
             "Speed: " + std::to_string(animSpeed) + "ms | Click to set points");
 
-        /* Plot area */
-        glColor3f(Colors::BG_R, Colors::BG_G, Colors::BG_B);
-        Renderer::drawRect((float)cs.plotAreaX, (float)cs.plotAreaY,
-                          (float)cs.plotAreaW, (float)cs.plotAreaH);
+        if (splitView) {
+            /* ==================== SPLIT VIEW ==================== */
+            /* Left half: DDA, Right half: Bresenham */
+            int halfW = (cs.plotAreaW - 10) / 2;
 
-        glEnable(GL_SCISSOR_TEST);
-        glScissor(cs.plotAreaX, windowHeight - cs.plotAreaY - cs.plotAreaH,
-                 cs.plotAreaW, cs.plotAreaH);
+            /* --- LEFT PLOT (DDA) --- */
+            int leftPlotX = cs.plotAreaX;
+            glColor3f(Colors::BG_R, Colors::BG_G, Colors::BG_B);
+            Renderer::drawRect((float)leftPlotX, (float)cs.plotAreaY,
+                              (float)halfW, (float)cs.plotAreaH);
 
-        /* Draw grid */
-        Renderer::drawGrid(cs);
+            /* DDA label */
+            glColor3f(Colors::ACCENT_R, Colors::ACCENT_G, Colors::ACCENT_B);
+            Renderer::drawText((float)(leftPlotX + 5), (float)(cs.plotAreaY + 15), "DDA Line");
 
-        /* Draw pixel grid if enabled */
-        if (showPixelGrid) {
-            float cellSize = cs.zoom * cs.scaleX; // pixels per unit
-            Renderer::drawPixelGrid(cs, cellSize);
-        }
+            CoordinateSystem leftCS = cs;
+            leftCS.plotAreaX = leftPlotX;
+            leftCS.plotAreaW = halfW;
 
-        /* Get current algorithm steps */
-        const std::vector<AlgorithmStep>* currentSteps = nullptr;
-        if (currentAlgo == ALGO_DDA_LINE) {
-            currentSteps = &ddaLine.getSteps();
-        } else {
-            currentSteps = &bresenhamLine.getSteps();
-        }
+            glEnable(GL_SCISSOR_TEST);
+            glScissor(leftPlotX, windowHeight - cs.plotAreaY - cs.plotAreaH,
+                     halfW, cs.plotAreaH);
 
-        /* Draw algorithm visualization */
-        if (currentSteps && !currentSteps->empty()) {
-            float cellSize = cs.zoom * cs.scaleX;
-            bool useCells = showPixelGrid && cellSize >= 8.0f;
-
-            /* Draw completed steps */
-            for (int i = 0; i < algoCurrentStep && i < (int)currentSteps->size(); i++) {
-                const auto& step = (*currentSteps)[i];
-                for (const auto& pt : step.plottedPoints) {
-                    float sx = cs.worldToScreenX(pt.x);
-                    float sy = cs.worldToScreenY(pt.y);
-                    if (useCells) {
-                        glColor4f(Colors::PIXEL_R, Colors::PIXEL_G, Colors::PIXEL_B, 0.6f);
-                        Renderer::drawPixelSquare(sx, sy, cellSize - 2);
-                    } else {
-                        glColor3f(Colors::ACCENT_R, Colors::ACCENT_G, Colors::ACCENT_B);
-                        Renderer::drawPixel(sx, sy, 4.0f);
-                    }
-                }
+            Renderer::drawGrid(leftCS);
+            if (showPixelGrid) {
+                Renderer::drawPixelGrid(leftCS, leftCS.zoom * leftCS.scaleX);
             }
 
-            /* Draw current step (highlighted) */
-            if (algoCurrentStep > 0 && algoCurrentStep <= (int)currentSteps->size()) {
-                const auto& step = (*currentSteps)[algoCurrentStep - 1];
-                for (const auto& pt : step.plottedPoints) {
-                    float sx = cs.worldToScreenX(pt.x);
-                    float sy = cs.worldToScreenY(pt.y);
-                    if (useCells) {
-                        glColor3f(Colors::YELLOW_R, Colors::YELLOW_G, Colors::YELLOW_B);
-                        Renderer::drawPixelSquare(sx, sy, cellSize - 2);
+            drawAlgoVisualization(leftCS, ddaLine.getSteps(), algoCurrentStep,
+                Colors::ACCENT_R, Colors::ACCENT_G, Colors::ACCENT_B,
+                Colors::YELLOW_R, Colors::YELLOW_G, Colors::YELLOW_B);
 
-                        /* Show pixel coordinate label */
-                        glColor3f(Colors::TEXT_R, Colors::TEXT_G, Colors::TEXT_B);
-                        Renderer::drawSmallText(sx - 10, sy - cellSize/2 - 5,
-                            pt.toPixelString());
-                    } else {
-                        glColor3f(Colors::YELLOW_R, Colors::YELLOW_G, Colors::YELLOW_B);
-                        Renderer::drawPixel(sx, sy, 8.0f);
-                    }
-                }
-            }
-        }
+            /* Endpoints on left */
+            glColor3f(Colors::GREEN_R, Colors::GREEN_G, Colors::GREEN_B);
+            Renderer::drawPixel(leftCS.worldToScreenX(algoStartPoint.x),
+                               leftCS.worldToScreenY(algoStartPoint.y), 6.0f);
+            glColor3f(Colors::RED_R, Colors::RED_G, Colors::RED_B);
+            Renderer::drawPixel(leftCS.worldToScreenX(algoEndPoint.x),
+                               leftCS.worldToScreenY(algoEndPoint.y), 6.0f);
 
-        /* Draw endpoint markers */
-        float sx1 = cs.worldToScreenX(algoStartPoint.x);
-        float sy1 = cs.worldToScreenY(algoStartPoint.y);
-        float sx2 = cs.worldToScreenX(algoEndPoint.x);
-        float sy2 = cs.worldToScreenY(algoEndPoint.y);
+            glDisable(GL_SCISSOR_TEST);
 
-        glColor3f(Colors::GREEN_R, Colors::GREEN_G, Colors::GREEN_B);
-        Renderer::drawPixel(sx1, sy1, 8.0f);
-        glColor3f(Colors::RED_R, Colors::RED_G, Colors::RED_B);
-        Renderer::drawPixel(sx2, sy2, 8.0f);
+            /* --- RIGHT PLOT (Bresenham) --- */
+            int rightPlotX = leftPlotX + halfW + 10;
+            glColor3f(Colors::BG_R, Colors::BG_G, Colors::BG_B);
+            Renderer::drawRect((float)rightPlotX, (float)cs.plotAreaY,
+                              (float)halfW, (float)cs.plotAreaH);
 
-        /* Endpoint labels */
-        glColor3f(Colors::GREEN_R, Colors::GREEN_G, Colors::GREEN_B);
-        Renderer::drawSmallText(sx1 + 8, sy1 - 5, "Start " + algoStartPoint.toPixelString());
-        glColor3f(Colors::RED_R, Colors::RED_G, Colors::RED_B);
-        Renderer::drawSmallText(sx2 + 8, sy2 - 5, "End " + algoEndPoint.toPixelString());
-
-        glDisable(GL_SCISSOR_TEST);
-
-        /* Right info panel */
-        float panelX = (float)(cs.plotAreaX + cs.plotAreaW + 5);
-        float panelW = windowWidth - panelX;
-        glColor3f(Colors::PANEL_R, Colors::PANEL_G, Colors::PANEL_B);
-        Renderer::drawRect(panelX, (float)cs.plotAreaY, panelW, (float)cs.plotAreaH);
-
-        float infoY = cs.plotAreaY + 20.0f;
-
-        /* Algorithm name */
-        glColor3f(Colors::ACCENT_R, Colors::ACCENT_G, Colors::ACCENT_B);
-        std::string algoName = (currentAlgo == ALGO_DDA_LINE) ? "DDA Line" : "Bresenham Line";
-        Renderer::drawText(panelX + 10, infoY, algoName);
-        infoY += 22;
-
-        /* Algorithm description */
-        glColor3f(Colors::DIM_R, Colors::DIM_G, Colors::DIM_B);
-        std::string desc = (currentAlgo == ALGO_DDA_LINE) ?
-            ddaLine.getDescription() : bresenhamLine.getDescription();
-        /* Word wrap description */
-        std::string word;
-        std::istringstream descStream(desc);
-        std::string curLine;
-        while (descStream >> word) {
-            if (curLine.length() + word.length() + 1 > 42) {
-                Renderer::drawSmallText(panelX + 10, infoY, curLine);
-                infoY += 14;
-                curLine = word;
-            } else {
-                if (!curLine.empty()) curLine += " ";
-                curLine += word;
-            }
-        }
-        if (!curLine.empty()) {
-            Renderer::drawSmallText(panelX + 10, infoY, curLine);
-            infoY += 14;
-        }
-        infoY += 10;
-
-        /* Parameters */
-        glColor3f(Colors::TEXT_R, Colors::TEXT_G, Colors::TEXT_B);
-        Renderer::drawSmallText(panelX + 10, infoY,
-            "Start: " + algoStartPoint.toPixelString());
-        infoY += 16;
-        Renderer::drawSmallText(panelX + 10, infoY,
-            "End: " + algoEndPoint.toPixelString());
-        infoY += 20;
-
-        /* Current step info */
-        if (currentSteps && !currentSteps->empty()) {
+            /* Bresenham label */
             glColor3f(Colors::ACCENT2_R, Colors::ACCENT2_G, Colors::ACCENT2_B);
-            std::ostringstream stepLabel;
-            stepLabel << "Step " << algoCurrentStep << " / " << currentSteps->size();
-            Renderer::drawText(panelX + 10, infoY, stepLabel.str());
-            infoY += 22;
+            Renderer::drawText((float)(rightPlotX + 5), (float)(cs.plotAreaY + 15),
+                "Bresenham Line");
 
-            /* Show current step explanation */
-            if (algoCurrentStep > 0 && algoCurrentStep <= (int)currentSteps->size()) {
-                const auto& step = (*currentSteps)[algoCurrentStep - 1];
-                glColor3f(Colors::TEXT_R, Colors::TEXT_G, Colors::TEXT_B);
+            CoordinateSystem rightCS = cs;
+            rightCS.plotAreaX = rightPlotX;
+            rightCS.plotAreaW = halfW;
 
-                std::istringstream iss(step.explanation);
-                std::string line;
-                while (std::getline(iss, line) && infoY < cs.plotAreaY + cs.plotAreaH - 60) {
-                    Renderer::drawSmallText(panelX + 10, infoY, line);
-                    infoY += 14;
-                }
+            glEnable(GL_SCISSOR_TEST);
+            glScissor(rightPlotX, windowHeight - cs.plotAreaY - cs.plotAreaH,
+                     halfW, cs.plotAreaH);
 
-                infoY += 10;
-
-                /* Decision variable display for Bresenham */
-                if (currentAlgo == ALGO_BRESENHAM_LINE) {
-                    glColor3f(Colors::YELLOW_R, Colors::YELLOW_G, Colors::YELLOW_B);
-                    std::ostringstream dv;
-                    dv << "e = " << (int)step.decisionVariable;
-                    Renderer::drawText(panelX + 10, infoY, dv.str());
-                    infoY += 18;
-
-                    glColor3f(Colors::TEXT_R, Colors::TEXT_G, Colors::TEXT_B);
-                    Renderer::drawSmallText(panelX + 10, infoY, step.decision);
-                    infoY += 16;
-                }
+            Renderer::drawGrid(rightCS);
+            if (showPixelGrid) {
+                Renderer::drawPixelGrid(rightCS, rightCS.zoom * rightCS.scaleX);
             }
+
+            drawAlgoVisualization(rightCS, bresenhamLine.getSteps(), algoCurrentStep2,
+                Colors::ACCENT2_R, Colors::ACCENT2_G, Colors::ACCENT2_B,
+                Colors::YELLOW_R, Colors::YELLOW_G, Colors::YELLOW_B);
+
+            /* Endpoints on right */
+            glColor3f(Colors::GREEN_R, Colors::GREEN_G, Colors::GREEN_B);
+            Renderer::drawPixel(rightCS.worldToScreenX(algoStartPoint.x),
+                               rightCS.worldToScreenY(algoStartPoint.y), 6.0f);
+            glColor3f(Colors::RED_R, Colors::RED_G, Colors::RED_B);
+            Renderer::drawPixel(rightCS.worldToScreenX(algoEndPoint.x),
+                               rightCS.worldToScreenY(algoEndPoint.y), 6.0f);
+
+            glDisable(GL_SCISSOR_TEST);
+
+            /* Divider line */
+            glColor3f(Colors::DIM_R, Colors::DIM_G, Colors::DIM_B);
+            glBegin(GL_LINES);
+            glVertex2f((float)(leftPlotX + halfW + 5), (float)cs.plotAreaY);
+            glVertex2f((float)(leftPlotX + halfW + 5), (float)(cs.plotAreaY + cs.plotAreaH));
+            glEnd();
+
+            /* Info panels below the plot area (side by side) */
+            float infoPanelY = (float)(cs.plotAreaY + cs.plotAreaH + 5);
+            float infoPanelH = (float)(windowHeight - infoPanelY - 55);
+
+            /* Left info (DDA) */
+            glColor3f(Colors::PANEL_R, Colors::PANEL_G, Colors::PANEL_B);
+            Renderer::drawRect((float)leftPlotX, infoPanelY, (float)halfW, infoPanelH);
+            drawAlgoInfoPanel((float)leftPlotX, (float)halfW, infoPanelY + 10,
+                infoPanelY + infoPanelH, "DDA Line", ddaLine.getDescription(),
+                ddaLine.getSteps(), algoCurrentStep, false);
+
+            /* Right info (Bresenham) */
+            glColor3f(Colors::PANEL_R, Colors::PANEL_G, Colors::PANEL_B);
+            Renderer::drawRect((float)rightPlotX, infoPanelY, (float)halfW, infoPanelH);
+            drawAlgoInfoPanel((float)rightPlotX, (float)halfW, infoPanelY + 10,
+                infoPanelY + infoPanelH, "Bresenham Line", bresenhamLine.getDescription(),
+                bresenhamLine.getSteps(), algoCurrentStep2, true);
+
+            /* Navigation buttons at very bottom */
+            int navY = windowHeight - 48;
+            glColor3f(Colors::PANEL_R, Colors::PANEL_G, Colors::PANEL_B);
+            Renderer::drawRect(0, (float)navY - 5, (float)windowWidth, 53);
+
+            buttons.push_back(Button(10, navY, 80, 30, "< Previous", 210));
+            buttons.push_back(Button(95, navY, 70, 30, "Next >", 211));
+            buttons.push_back(Button(170, navY, 60, 30, "Play", 212));
+            buttons.push_back(Button(235, navY, 60, 30, "Pause", 213));
+            buttons.push_back(Button(300, navY, 60, 30, "Reset", 214));
+            buttons.push_back(Button(380, navY, 80, 30, "Run Algo", 215));
+
+            buttons[buttons.size() - 4].active = (algoAnimState == ANIM_PLAYING);
+            buttons[buttons.size() - 3].active = (algoAnimState == ANIM_PAUSED);
+
+            for (size_t i = buttons.size() - 6; i < buttons.size(); i++) {
+                Renderer::drawButton(buttons[i]);
+            }
+
+            glColor3f(Colors::DIM_R, Colors::DIM_G, Colors::DIM_B);
+            Renderer::drawSmallText(480, (float)(navY + 20),
+                settingStartPoint ? "Click either plot to set START" : "Click either plot to set END");
+
+        } else {
+            /* ==================== SINGLE VIEW ==================== */
+            /* Plot area */
+            glColor3f(Colors::BG_R, Colors::BG_G, Colors::BG_B);
+            Renderer::drawRect((float)cs.plotAreaX, (float)cs.plotAreaY,
+                              (float)cs.plotAreaW, (float)cs.plotAreaH);
+
+            glEnable(GL_SCISSOR_TEST);
+            glScissor(cs.plotAreaX, windowHeight - cs.plotAreaY - cs.plotAreaH,
+                     cs.plotAreaW, cs.plotAreaH);
+
+            Renderer::drawGrid(cs);
+
+            if (showPixelGrid) {
+                float cellSize = cs.zoom * cs.scaleX;
+                Renderer::drawPixelGrid(cs, cellSize);
+            }
+
+            /* Get current algorithm steps */
+            const std::vector<AlgorithmStep>* currentSteps = nullptr;
+            bool isBresenham = false;
+            if (currentAlgo == ALGO_DDA_LINE) {
+                currentSteps = &ddaLine.getSteps();
+            } else {
+                currentSteps = &bresenhamLine.getSteps();
+                isBresenham = true;
+            }
+
+            if (currentSteps) {
+                drawAlgoVisualization(cs, *currentSteps, algoCurrentStep,
+                    Colors::ACCENT_R, Colors::ACCENT_G, Colors::ACCENT_B,
+                    Colors::YELLOW_R, Colors::YELLOW_G, Colors::YELLOW_B);
+            }
+
+            /* Draw endpoint markers */
+            float sx1 = cs.worldToScreenX(algoStartPoint.x);
+            float sy1 = cs.worldToScreenY(algoStartPoint.y);
+            float sx2 = cs.worldToScreenX(algoEndPoint.x);
+            float sy2 = cs.worldToScreenY(algoEndPoint.y);
+
+            glColor3f(Colors::GREEN_R, Colors::GREEN_G, Colors::GREEN_B);
+            Renderer::drawPixel(sx1, sy1, 8.0f);
+            glColor3f(Colors::RED_R, Colors::RED_G, Colors::RED_B);
+            Renderer::drawPixel(sx2, sy2, 8.0f);
+
+            glColor3f(Colors::GREEN_R, Colors::GREEN_G, Colors::GREEN_B);
+            Renderer::drawSmallText(sx1 + 8, sy1 - 5, "Start " + algoStartPoint.toPixelString());
+            glColor3f(Colors::RED_R, Colors::RED_G, Colors::RED_B);
+            Renderer::drawSmallText(sx2 + 8, sy2 - 5, "End " + algoEndPoint.toPixelString());
+
+            glDisable(GL_SCISSOR_TEST);
+
+            /* Right info panel */
+            float panelX = (float)(cs.plotAreaX + cs.plotAreaW + 5);
+            float panelW = windowWidth - panelX;
+            glColor3f(Colors::PANEL_R, Colors::PANEL_G, Colors::PANEL_B);
+            Renderer::drawRect(panelX, (float)cs.plotAreaY, panelW, (float)cs.plotAreaH);
+
+            std::string algoName = isBresenham ? "Bresenham Line" : "DDA Line";
+            std::string desc = isBresenham ? bresenhamLine.getDescription() : ddaLine.getDescription();
+
+            drawAlgoInfoPanel(panelX, panelW, cs.plotAreaY + 20.0f,
+                (float)(cs.plotAreaY + cs.plotAreaH), algoName, desc,
+                currentSteps ? *currentSteps : std::vector<AlgorithmStep>(),
+                algoCurrentStep, isBresenham);
+
+            /* Navigation buttons */
+            int navY = cs.plotAreaY + cs.plotAreaH + 10;
+            buttons.push_back(Button(10, navY, 80, 30, "< Previous", 210));
+            buttons.push_back(Button(95, navY, 70, 30, "Next >", 211));
+            buttons.push_back(Button(170, navY, 60, 30, "Play", 212));
+            buttons.push_back(Button(235, navY, 60, 30, "Pause", 213));
+            buttons.push_back(Button(300, navY, 60, 30, "Reset", 214));
+            buttons.push_back(Button(380, navY, 80, 30, "Run Algo", 215));
+            buttons.push_back(Button(470, navY, 60, 30, "Quiz", 216));
+
+            buttons[buttons.size() - 5].active = (algoAnimState == ANIM_PLAYING);
+            buttons[buttons.size() - 4].active = (algoAnimState == ANIM_PAUSED);
+
+            for (size_t i = buttons.size() - 7; i < buttons.size(); i++) {
+                Renderer::drawButton(buttons[i]);
+            }
+
+            glColor3f(Colors::DIM_R, Colors::DIM_G, Colors::DIM_B);
+            Renderer::drawSmallText(550, (float)(navY + 20),
+                settingStartPoint ? "Click to set START point" : "Click to set END point");
         }
-
-        /* Navigation buttons */
-        int navY = cs.plotAreaY + cs.plotAreaH + 10;
-        buttons.push_back(Button(10, navY, 80, 30, "< Previous", 210));
-        buttons.push_back(Button(95, navY, 70, 30, "Next >", 211));
-        buttons.push_back(Button(170, navY, 60, 30, "Play", 212));
-        buttons.push_back(Button(235, navY, 60, 30, "Pause", 213));
-        buttons.push_back(Button(300, navY, 60, 30, "Reset", 214));
-        buttons.push_back(Button(380, navY, 80, 30, "Run Algo", 215));
-        buttons.push_back(Button(470, navY, 60, 30, "Quiz", 216));
-
-        /* Mark play/pause state */
-        buttons[buttons.size() - 5].active = (algoAnimState == ANIM_PLAYING);
-        buttons[buttons.size() - 4].active = (algoAnimState == ANIM_PAUSED);
-
-        for (size_t i = buttons.size() - 7; i < buttons.size(); i++) {
-            Renderer::drawButton(buttons[i]);
-        }
-
-        /* Point setting instruction */
-        glColor3f(Colors::DIM_R, Colors::DIM_G, Colors::DIM_B);
-        Renderer::drawSmallText(550, (float)(navY + 20),
-            settingStartPoint ? "Click to set START point" : "Click to set END point");
 
         /* Quiz overlay */
         if (quizActive) {
@@ -1733,18 +1904,15 @@ public:
     void specialKey(int key, int /*mx*/, int /*my*/) {
         float panAmount = 30.0f;
 
+        /*
+         * Arrow key panning:
+         * LEFT  → decrease panX → show content to the left
+         * RIGHT → increase panX → show content to the right
+         * UP    → increase panY → show content above
+         * DOWN  → decrease panY → show content below
+         */
         switch (key) {
             case GLUT_KEY_LEFT:
-                if (currentState == STATE_GRAPH_PLOTTER) {
-                    plotter.getCoordSystem().pan(-panAmount, 0);
-                    if (plotter.graphExists()) plotter.computeGraph();
-                } else if (currentState == STATE_ALGORITHM_EXPLORER) {
-                    algoCoordSystem.pan(-panAmount, 0);
-                } else if (currentState == STATE_CIRCLE_EXPLORER) {
-                    circleCoordSystem.pan(-panAmount, 0);
-                }
-                break;
-            case GLUT_KEY_RIGHT:
                 if (currentState == STATE_GRAPH_PLOTTER) {
                     plotter.getCoordSystem().pan(panAmount, 0);
                     if (plotter.graphExists()) plotter.computeGraph();
@@ -1754,17 +1922,17 @@ public:
                     circleCoordSystem.pan(panAmount, 0);
                 }
                 break;
-            case GLUT_KEY_UP:
+            case GLUT_KEY_RIGHT:
                 if (currentState == STATE_GRAPH_PLOTTER) {
-                    plotter.getCoordSystem().pan(0, -panAmount);
+                    plotter.getCoordSystem().pan(-panAmount, 0);
                     if (plotter.graphExists()) plotter.computeGraph();
                 } else if (currentState == STATE_ALGORITHM_EXPLORER) {
-                    algoCoordSystem.pan(0, -panAmount);
+                    algoCoordSystem.pan(-panAmount, 0);
                 } else if (currentState == STATE_CIRCLE_EXPLORER) {
-                    circleCoordSystem.pan(0, -panAmount);
+                    circleCoordSystem.pan(-panAmount, 0);
                 }
                 break;
-            case GLUT_KEY_DOWN:
+            case GLUT_KEY_UP:
                 if (currentState == STATE_GRAPH_PLOTTER) {
                     plotter.getCoordSystem().pan(0, panAmount);
                     if (plotter.graphExists()) plotter.computeGraph();
@@ -1772,6 +1940,16 @@ public:
                     algoCoordSystem.pan(0, panAmount);
                 } else if (currentState == STATE_CIRCLE_EXPLORER) {
                     circleCoordSystem.pan(0, panAmount);
+                }
+                break;
+            case GLUT_KEY_DOWN:
+                if (currentState == STATE_GRAPH_PLOTTER) {
+                    plotter.getCoordSystem().pan(0, -panAmount);
+                    if (plotter.graphExists()) plotter.computeGraph();
+                } else if (currentState == STATE_ALGORITHM_EXPLORER) {
+                    algoCoordSystem.pan(0, -panAmount);
+                } else if (currentState == STATE_CIRCLE_EXPLORER) {
+                    circleCoordSystem.pan(0, -panAmount);
                 }
                 break;
         }
@@ -1936,12 +2114,25 @@ public:
                 break;
             case 203: showPixelGrid = !showPixelGrid; break;
             case 204:
-                animSpeed += 50;
-                if (animSpeed > 2000) animSpeed = 2000;
+                animSpeed += 100;
+                if (animSpeed > 3000) animSpeed = 3000;
                 break;
             case 205:
-                animSpeed -= 50;
-                if (animSpeed < 50) animSpeed = 50;
+                animSpeed -= 100;
+                if (animSpeed < 100) animSpeed = 100;
+                break;
+            case 206:
+                splitView = !splitView;
+                if (splitView) {
+                    /* Run both algorithms for comparison */
+                    ddaLine.setEndpoints(algoStartPoint, algoEndPoint);
+                    ddaLine.execute();
+                    bresenhamLine.setEndpoints(algoStartPoint, algoEndPoint);
+                    bresenhamLine.execute();
+                    algoCurrentStep = 0;
+                    algoCurrentStep2 = 0;
+                    algoAnimState = ANIM_STOPPED;
+                }
                 break;
 
             case 210: prevStep(); break;
@@ -2035,9 +2226,16 @@ public:
      * ============================================================ */
     void runCurrentLineAlgorithm() {
         algoCurrentStep = 0;
+        algoCurrentStep2 = 0;
         algoAnimState = ANIM_STOPPED;
 
-        if (currentAlgo == ALGO_DDA_LINE) {
+        if (splitView) {
+            /* In split view, run BOTH algorithms for comparison */
+            ddaLine.setEndpoints(algoStartPoint, algoEndPoint);
+            ddaLine.execute();
+            bresenhamLine.setEndpoints(algoStartPoint, algoEndPoint);
+            bresenhamLine.execute();
+        } else if (currentAlgo == ALGO_DDA_LINE) {
             ddaLine.setEndpoints(algoStartPoint, algoEndPoint);
             ddaLine.execute();
         } else {
@@ -2064,18 +2262,33 @@ public:
      * ============================================================ */
     void nextStep() {
         if (currentState == STATE_ALGORITHM_EXPLORER) {
-            const auto* steps = (currentAlgo == ALGO_DDA_LINE) ?
-                &ddaLine.getSteps() : &bresenhamLine.getSteps();
-            if (algoCurrentStep < (int)steps->size()) {
-                algoCurrentStep++;
+            if (splitView) {
+                /* Advance both algorithms together */
+                if (algoCurrentStep < (int)ddaLine.getSteps().size()) {
+                    algoCurrentStep++;
+                }
+                if (algoCurrentStep2 < (int)bresenhamLine.getSteps().size()) {
+                    algoCurrentStep2++;
+                }
+            } else {
+                const auto* steps = (currentAlgo == ALGO_DDA_LINE) ?
+                    &ddaLine.getSteps() : &bresenhamLine.getSteps();
+                if (algoCurrentStep < (int)steps->size()) {
+                    algoCurrentStep++;
+                }
             }
         }
     }
 
     void prevStep() {
         if (currentState == STATE_ALGORITHM_EXPLORER) {
-            if (algoCurrentStep > 0) {
-                algoCurrentStep--;
+            if (splitView) {
+                if (algoCurrentStep > 0) algoCurrentStep--;
+                if (algoCurrentStep2 > 0) algoCurrentStep2--;
+            } else {
+                if (algoCurrentStep > 0) {
+                    algoCurrentStep--;
+                }
             }
         }
     }
@@ -2129,6 +2342,7 @@ public:
     void resetAnimation() {
         if (currentState == STATE_ALGORITHM_EXPLORER) {
             algoCurrentStep = 0;
+            algoCurrentStep2 = 0;
             algoAnimState = ANIM_STOPPED;
         }
     }
@@ -2146,12 +2360,23 @@ public:
     /* Timer callback for animation */
     void timerTick() {
         if (currentState == STATE_ALGORITHM_EXPLORER && algoAnimState == ANIM_PLAYING) {
-            const auto* steps = (currentAlgo == ALGO_DDA_LINE) ?
-                &ddaLine.getSteps() : &bresenhamLine.getSteps();
-            if (algoCurrentStep < (int)steps->size()) {
-                algoCurrentStep++;
+            if (splitView) {
+                /* Advance both algorithms in split view */
+                bool ddaDone = algoCurrentStep >= (int)ddaLine.getSteps().size();
+                bool bresDone = algoCurrentStep2 >= (int)bresenhamLine.getSteps().size();
+                if (!ddaDone) algoCurrentStep++;
+                if (!bresDone) algoCurrentStep2++;
+                if (ddaDone && bresDone) {
+                    algoAnimState = ANIM_PAUSED;
+                }
             } else {
-                algoAnimState = ANIM_PAUSED;
+                const auto* steps = (currentAlgo == ALGO_DDA_LINE) ?
+                    &ddaLine.getSteps() : &bresenhamLine.getSteps();
+                if (algoCurrentStep < (int)steps->size()) {
+                    algoCurrentStep++;
+                } else {
+                    algoAnimState = ANIM_PAUSED;
+                }
             }
             glutPostRedisplay();
         }
