@@ -18,7 +18,7 @@ struct Cell {
     int y;
 };
 
-enum class Colour { Background, Boundary, Patch };
+enum class Colour { Background, Boundary, Patch, Exterior };
 enum class Method { Boundary4, Boundary8, Flood4, Flood8, Scanline };
 
 using Grid = std::array<std::array<Colour, WIDTH>, HEIGHT>;
@@ -98,7 +98,7 @@ inline Steps scanlineFill(const std::vector<Cell>& vertices, const Grid& grid) {
             const int first = std::max(0, static_cast<int>(std::ceil(crossings[i - 1])));
             const int end = std::min(WIDTH, static_cast<int>(std::ceil(crossings[i])));
             for (int x = first; x < end; ++x) {
-                if (grid[y][x] != Colour::Boundary) step.cells.push_back({x, y});
+                if (grid[y][x] == Colour::Background) step.cells.push_back({x, y});
             }
         }
         if (!step.cells.empty()) steps.push_back(std::move(step));

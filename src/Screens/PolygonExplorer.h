@@ -20,7 +20,7 @@ class PolygonExplorer : public Screen {
         {Method::Boundary8, "Boundary 8", "Moves through side and corner neighbours and stops at orange cells. Try the diamond to see how the fill can slip between diagonal boundary cells."},
         {Method::Flood4, "Flood 4", "Replaces cells that match the seed colour and share a side with the growing region."},
         {Method::Flood8, "Flood 8", "Replaces cells that match the seed colour and touch the growing region along a side or at a corner."},
-        {Method::Scanline, "Scanline", "Finds where each row crosses the polygon edges, then fills between each pair of crossings."}
+        {Method::Scanline, "Scanline", "Finds where each row crosses the polygon edges and fills the empty cells between each pair of crossings."}
     }};
 
     enum Ids { ID_METHOD = 600, ID_CONCAVE = 605, ID_DIAMOND };
@@ -56,8 +56,17 @@ class PolygonExplorer : public Screen {
                 for (int x = 6; x < 8; ++x) canvas[y][x] = Colour::Patch;
             }
         } else {
-            vertices = {{12, 2}, {19, 9}, {12, 16}, {5, 9}};
             seed = {12, 9};
+            constexpr int radius = 7;
+            vertices = {{seed.x, seed.y - radius}, {seed.x + radius, seed.y},
+                        {seed.x, seed.y + radius}, {seed.x - radius, seed.y}};
+            // The inside and outside have different colours for flood fill.
+            for (int y = 0; y < PolygonFill::HEIGHT; ++y) {
+                for (int x = 0; x < PolygonFill::WIDTH; ++x) {
+                    if (std::abs(x - seed.x) + std::abs(y - seed.y) > radius)
+                        canvas[y][x] = Colour::Exterior;
+                }
+            }
         }
         PolygonFill::drawOutline(canvas, vertices);
         recalculate();
@@ -91,7 +100,8 @@ class PolygonExplorer : public Screen {
             for (int x = 0; x < PolygonFill::WIDTH; ++x) {
                 const auto color = canvas[y][x];
                 setColor(color == Colour::Boundary ? Theme::ACCENT2 :
-                         color == Colour::Patch ? Theme::PURPLE : Theme::PLOT_BG);
+                         color == Colour::Patch ? Theme::PURPLE :
+                         color == Colour::Exterior ? Theme::BG : Theme::PLOT_BG);
                 Renderer::drawRect(boundsFor({x, y}).inset(0.5f));
             }
         }
@@ -127,7 +137,7 @@ class PolygonExplorer : public Screen {
         y = Renderer::drawWrapped(x, y + 25, width, methods[selected].explanation, Fonts::body(), limit);
         const char* hint = preset == Preset::Concave
             ? "The purple patch has a different colour. Compare Boundary Fill and Flood Fill."
-            : "Compare the finished results for 4 and 8 neighbours on this thin diagonal outline.";
+            : "The inside and outside use different colours. Flood fill follows the seed colour.";
         setColor(Theme::TEXT_DIM);
         y = Renderer::drawWrapped(x, y + 9, width, hint, Fonts::body(), limit);
         if (!scanline()) {
