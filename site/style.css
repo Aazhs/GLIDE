@@ -32,8 +32,9 @@ code { font: .9em var(--mono); color: var(--text); }
 .topbar { min-height: 4.25rem; }
 .footer-content { min-height: 4.75rem; }
 .wordmark { font: 700 1.18rem var(--mono); letter-spacing: .34em; text-decoration: none; }
-nav a, .footer-content > a:not(.wordmark) { color: var(--muted); text-decoration: none; font-size: .9rem; }
-nav a:hover, .footer-content > a:hover { color: var(--cyan); }
+nav a, .footer-links a { color: var(--muted); text-decoration: none; font-size: .9rem; }
+nav a:hover, .footer-links a:hover { color: var(--cyan); }
+.footer-links { display: flex; flex-wrap: wrap; justify-content: end; gap: .2rem 1.3rem; }
 nav .nav-download { color: var(--cyan); border: 1px solid #185562; padding: .3rem .65rem; border-radius: .2rem; }
 
 .hero {

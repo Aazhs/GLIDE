@@ -112,3 +112,7 @@ Select **Custom** to draw your own polygon. Click at least three corners in orde
 - OpenGL
 - GLUT / FreeGLUT
 - CMake 3.10+
+
+## License
+
+GLIDE's source code, documentation, and website are licensed under the [MIT License](LICENSE). Third-party dependencies, including FreeGLUT, retain their own licenses.

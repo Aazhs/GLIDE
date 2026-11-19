@@ -28,6 +28,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path dist, package | Out-Null
           Copy-Item build/Release/glide.exe package/glide.exe
+          Copy-Item LICENSE package/LICENSE.txt
           Copy-Item "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows-static/share/freeglut/copyright" package/FreeGLUT-LICENSE.txt
           Compress-Archive -Path package/* -DestinationPath dist/GLIDE-Windows-x64.zip
       - uses: actions/upload-artifact@v7
@@ -58,7 +59,8 @@ jobs:
           plutil -lint 'package/GLIDE.app/Contents/Info.plist'
           codesign --force --sign - 'package/GLIDE.app'
           codesign --verify --strict 'package/GLIDE.app'
-          ditto -c -k --keepParent 'package/GLIDE.app' dist/GLIDE-macOS-universal.zip
+          cp LICENSE package/LICENSE.txt
+          ditto -c -k package dist/GLIDE-macOS-universal.zip
       - uses: actions/upload-artifact@v7
         with:
           name: GLIDE-macOS-universal
@@ -80,6 +82,7 @@ jobs:
           cmake --build build --parallel
           mkdir -p package/GLIDE-Linux-x64/lib dist
           install -m 755 build/glide package/GLIDE-Linux-x64/glide
+          cp LICENSE package/GLIDE-Linux-x64/LICENSE.txt
           read -r glut_name glut_library < <(ldd build/glide | awk '$1 ~ /^libglut[.]so[.]/ {print $1, $3; exit}')
           test -f "$glut_library"
           cp -L "$glut_library" "package/GLIDE-Linux-x64/lib/$glut_name"
