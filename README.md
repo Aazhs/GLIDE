@@ -32,7 +32,7 @@ Algorithm implementations are based on the algorithms taught in the provided cou
 
 ## Quick Start
 
-Download GLIDE for Windows, macOS, or Linux from [GitHub Releases](https://github.com/Aazhs/GLIDE/releases).
+Download GLIDE for Windows, macOS, or Linux from the [GLIDE homepage](https://aazhs.github.io/GLIDE/) or [GitHub Releases](https://github.com/Aazhs/GLIDE/releases).
 
 - **Windows x64** — Extract the ZIP and open `glide.exe`.
 - **macOS 12 or later** — Extract the ZIP and open `GLIDE.app` on Apple Silicon or Intel.

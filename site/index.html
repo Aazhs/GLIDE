@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="GLIDE is an interactive desktop app for learning line drawing, circle drawing, polygon filling, and graph plotting. Download it for Windows, macOS, or Linux.">
+  <meta name="theme-color" content="#121318">
+  <title>GLIDE · Computer Graphics Explorer</title>
+  <link rel="icon" href="assets/icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body id="top">
+  <header class="site-header">
+    <div class="wrap topbar">
+      <a class="wordmark" href="#top" aria-label="GLIDE home">GLIDE</a>
+      <nav aria-label="Main navigation">
+        <a href="#tools">Explore</a>
+        <a href="https://github.com/Aazhs/GLIDE">GitHub</a>
+        <a class="nav-download" href="#download">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero" aria-labelledby="title">
+      <div class="hero-copy">
+        <h1 id="title">Computer graphics,<br><em>pixel by pixel.</em></h1>
+        <p>Watch lines, circles, and polygons take shape on a pixel grid. Step through the drawing, change the input, and see how each algorithm works.</p>
+        <a class="button primary" href="#download">Download GLIDE</a>
+        <p class="platform-list">Windows · macOS · Linux</p>
+      </div>
+      <figure class="app-view">
+        <div class="window-bar"><span class="indicator" aria-hidden="true"></span>GLIDE <span class="window-label">Polygon Explorer</span></div>
+        <img src="assets/polygon-explorer.webp" width="1280" height="820" alt="GLIDE Polygon Explorer showing a custom concave polygon filled with cyan pixels. The orange outline and highlighted current pixel are visible on the grid.">
+        <figcaption>8-connected flood fill on a custom polygon</figcaption>
+      </figure>
+    </section>
+
+    <section class="section" id="download" aria-labelledby="download-title">
+      <div class="section-heading">
+        <h2 id="download-title">Download GLIDE</h2>
+        <a href="https://github.com/Aazhs/GLIDE/releases/latest">Latest release notes</a>
+      </div>
+      <div class="platforms">
+        <article class="download-card windows">
+          <h3>Windows</h3>
+          <p class="spec">x64 · ZIP</p>
+          <p>Extract the ZIP and run <code>glide.exe</code>.</p>
+          <a class="button" href="https://github.com/Aazhs/GLIDE/releases/latest/download/GLIDE-Windows-x64.zip">Download for Windows</a>
+        </article>
+        <article class="download-card macos">
+          <h3>macOS</h3>
+          <p class="spec">Apple Silicon &amp; Intel · ZIP</p>
+          <p>Extract and open <code>GLIDE.app</code> on macOS 12 or later.</p>
+          <a class="button" href="https://github.com/Aazhs/GLIDE/releases/latest/download/GLIDE-macOS-universal.zip">Download for macOS</a>
+        </article>
+        <article class="download-card linux">
+          <h3>Linux</h3>
+          <p class="spec">x64 · TAR.GZ</p>
+          <p>Extract the archive and run <code>./glide</code> from its folder.</p>
+          <a class="button" href="https://github.com/Aazhs/GLIDE/releases/latest/download/GLIDE-Linux-x64.tar.gz">Download for Linux</a>
+        </article>
+      </div>
+      <p class="install-note">Smart App Control can block unsigned Windows releases. Gatekeeper can block ad hoc–signed macOS releases.</p>
+    </section>
+
+    <section class="section" id="tools" aria-labelledby="tools-title">
+      <div class="section-heading">
+        <h2 id="tools-title">Explore the tools</h2>
+      </div>
+      <div class="tools">
+        <article class="tool line">
+          <h3>Line Explorer</h3>
+          <p>Place two endpoints and compare which pixels DDA and Bresenham choose.</p>
+        </article>
+        <article class="tool circle">
+          <h3>Circle Explorer</h3>
+          <p>Choose a centre and radius, then step through DDA, Bresenham, or Midpoint.</p>
+        </article>
+        <article class="tool polygon">
+          <h3>Polygon Explorer</h3>
+          <p>Draw a polygon and watch boundary fill, flood fill, or scanline fill colour it.</p>
+        </article>
+        <article class="tool graph">
+          <h3>Graph Plotter</h3>
+          <p>Enter an equation such as <code>sin(x)</code> and see how short lines build the curve.</p>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-content">
+      <a class="wordmark" href="#top" aria-label="GLIDE home">GLIDE</a>
+      <a href="https://github.com/Aazhs/GLIDE">View source on GitHub</a>
+    </div>
+  </footer>
+</body>
+</html>
