@@ -6,14 +6,11 @@ An educational OpenGL application for exploring line drawing, circle drawing, po
 
 ## What is GLIDE?
 
-GLIDE demonstrates how classical rasterization algorithms work by:
+GLIDE lets you explore classical computer graphics algorithms one step at a time.
 
-1. **Plotting mathematical functions** (like a simple Desmos) using DDA or Bresenham line algorithms to connect sample points
-2. **Visualizing algorithms step-by-step** with detailed explanations of every decision variable, pixel selection, and calculation
-
-### The Central Idea
-
-> GLIDE does not merely draw graphics. It shows **how** classical computer graphics algorithms produce the graphics, and then applies those same algorithms to build a simple interactive graphing environment.
+- **Line and circle drawing** — Follow the calculations and pixel choices in DDA, Bresenham, and midpoint algorithms.
+- **Polygon filling** — Draw a custom polygon and watch boundary fill, flood fill, or scanline fill in action.
+- **Graph plotting** — Enter a mathematical function and see how DDA or Bresenham connects its sampled points.
 
 ## Algorithms Implemented
 
