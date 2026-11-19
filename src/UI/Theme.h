@@ -52,7 +52,7 @@ namespace Theme {
     const Color AXIS        (0.480f, 0.490f, 0.540f);
 
     /* Text */
-    const Color TEXT        (0.920f, 0.925f, 0.940f);
+    const Color TEXT_PRIMARY(0.920f, 0.925f, 0.940f);
     const Color TEXT_DIM    (0.580f, 0.595f, 0.640f);
     const Color TEXT_FAINT  (0.400f, 0.410f, 0.450f);
 

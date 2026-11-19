@@ -155,7 +155,7 @@ private:
         if (showOctants) drawOctantGuides(cs, isDDA, base);
 
         if (settings.showIdeal) {
-            setColor(Theme::TEXT.withAlpha(0.45f));
+            setColor(Theme::TEXT_PRIMARY.withAlpha(0.45f));
             glLineWidth(1.5f);
             Renderer::drawCircle(cx, cy, radius * cs.pixelsPerUnitX(), false, 180);
             glLineWidth(1.0f);
@@ -236,7 +236,7 @@ private:
         ui.slider(Rect(x, y + 7, 110, 14), (float)radius, (float)MIN_RADIUS, (float)MAX_RADIUS, ID_C_RADIUS);
         x += 118;
         ui.button(Rect(x, y, 28, 28), "+", ID_C_RPLUS, false, radius < MAX_RADIUS, Fonts::title()); x += 34;
-        setColor(Theme::TEXT);
+        setColor(Theme::TEXT_PRIMARY);
         Renderer::drawText(x, y + 19, std::to_string(radius), Fonts::body()); x += 34;
 
         x = drawCommonToggles(ui, x, y);
@@ -262,11 +262,11 @@ private:
     int handleAt(const CoordinateSystem& cs, int mx, int my) const override {
         float cx = cs.worldToScreenX(centre.x), cy = cs.worldToScreenY(centre.y);
         float rx = cs.worldToScreenX(centre.x + radius);
-        auto near = [&](float hx, float hy) {
+        auto withinHandleRadius = [&](float hx, float hy) {
             return (hx - mx) * (hx - mx) + (hy - my) * (hy - my) <= 12.0f * 12.0f;
         };
-        if (near(rx, cy)) return H_RADIUS;
-        if (near(cx, cy)) return H_CENTRE;
+        if (withinHandleRadius(rx, cy)) return H_RADIUS;
+        if (withinHandleRadius(cx, cy)) return H_CENTRE;
         return -1;
     }
 

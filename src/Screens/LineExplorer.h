@@ -124,7 +124,7 @@ private:
 
     void drawIdealLine(const CoordinateSystem& cs, const Point& a, const Point& b) const {
         if (!settings.showIdeal) return;
-        setColor(Theme::TEXT.withAlpha(0.55f));
+        setColor(Theme::TEXT_PRIMARY.withAlpha(0.55f));
         Renderer::drawLine(cs.worldToScreenX(a.x), cs.worldToScreenY(a.y),
                            cs.worldToScreenX(b.x), cs.worldToScreenY(b.y), 1.5f);
     }
@@ -155,7 +155,7 @@ private:
             Point e = exactPoint(algo, cur);
             float px = cs.worldToScreenX(p.x), py = cs.worldToScreenY(p.y);
             float ex = cs.worldToScreenX(e.x), ey = cs.worldToScreenY(e.y);
-            setColor(Theme::TEXT);
+            setColor(Theme::TEXT_PRIMARY);
             Renderer::drawLine(ex, ey, px, py, 1.5f);
             Renderer::drawCircle(ex, ey, 3.5f, true);
             setColor(Theme::PLOT_BG);
@@ -174,7 +174,7 @@ private:
             }
             Point hp((float)MathUtils::roundToInt(hoverWX), (float)MathUtils::roundToInt(hoverWY));
             float hx = cs.worldToScreenX(hp.x), hy = cs.worldToScreenY(hp.y);
-            setColor(Theme::TEXT.withAlpha(0.7f));
+            setColor(Theme::TEXT_PRIMARY.withAlpha(0.7f));
             Renderer::drawDashedLine(cs.worldToScreenX(p1.x), cs.worldToScreenY(p1.y), hx, hy, 1.5f);
             Renderer::drawHandle(hx, hy, Theme::RED.withAlpha(0.6f), false);
             Renderer::drawLabel(hx + 12, hy - 10, "P2 " + Format::px(hp) + " - click to place",
@@ -244,7 +244,7 @@ private:
         float x = panelR.x + 14, w = panelR.w - 28;
         if (placing) {
             float y = panelR.y + 26;
-            setColor(Theme::TEXT);
+            setColor(Theme::TEXT_PRIMARY);
             Renderer::drawText(x, y, "Placing a new line", Fonts::title());
             y += 26;
             setColor(Theme::TEXT_DIM);
@@ -255,7 +255,7 @@ private:
                 ? (const DrawingAlgorithm&)previewBres : (const DrawingAlgorithm&)previewDDA;
             if (mouseInPlot) {
                 y = drawSection(x, y, w, "PREVIEW");
-                setColor(Theme::TEXT);
+                setColor(Theme::TEXT_PRIMARY);
                 for (const auto& line : prev.getSetupLines()) {
                     y = Renderer::drawWrapped(x, y, w, line, Fonts::mono());
                 }
@@ -322,13 +322,13 @@ private:
     }
 
     int handleAt(const CoordinateSystem& cs, int mx, int my) const override {
-        auto near = [&](const Point& p) {
+        auto withinHandleRadius = [&](const Point& p) {
             float dx = cs.worldToScreenX(p.x) - mx, dy = cs.worldToScreenY(p.y) - my;
             return dx * dx + dy * dy <= 12.0f * 12.0f;
         };
         if (placing) return -1;
-        if (near(p2)) return H_END;
-        if (near(p1)) return H_START;
+        if (withinHandleRadius(p2)) return H_END;
+        if (withinHandleRadius(p1)) return H_START;
         return -1;
     }
 

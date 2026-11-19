@@ -216,7 +216,7 @@ private:
         cellAt(c, Theme::YELLOW);
 
         /* Ideal segment (pixel centres are at +0.5 inside each cell) */
-        setColor(Theme::TEXT.withAlpha(0.8f));
+        setColor(Theme::TEXT_PRIMARY.withAlpha(0.8f));
         Renderer::drawLine(toBoxX(cur.screenStart.x + 0.5f), toBoxY(cur.screenStart.y + 0.5f),
                            toBoxX(cur.screenEnd.x + 0.5f), toBoxY(cur.screenEnd.y + 0.5f), 1.5f);
         Renderer::endClip();
@@ -243,7 +243,7 @@ private:
         Renderer::drawRect(inputR);
         setColor(!error.empty() ? Theme::RED : (inputActive ? Theme::ACCENT : Theme::BTN_BORDER));
         Renderer::drawRectOutline(inputR, inputActive ? 1.5f : 1.0f);
-        setColor(Theme::TEXT);
+        setColor(Theme::TEXT_PRIMARY);
         std::string shown = input;
         while (!shown.empty() && Renderer::textWidth(shown, Fonts::body()) > inputW - 16) {
             shown.erase(0, 1);   // keep the end (where the caret is) visible
@@ -298,7 +298,7 @@ private:
             if (has) {
                 const GraphSegment& cur = segs[seg];
                 /* The segment being drawn: ideal line + revealed pixels */
-                setColor(Theme::TEXT.withAlpha(0.35f));
+                setColor(Theme::TEXT_PRIMARY.withAlpha(0.35f));
                 Renderer::drawLine(cur.screenStart.x, cur.screenStart.y,
                                    cur.screenEnd.x, cur.screenEnd.y);
                 setColor(Theme::GREEN);
@@ -328,7 +328,7 @@ private:
             if (MathUtils::isValidFloat(wy)) {
                 float sx = (float)mouseX, sy = cs.worldToScreenY(wy);
                 if (sy >= plotR.y && sy <= plotR.bottom()) {
-                    setColor(Theme::TEXT.withAlpha(0.25f));
+                    setColor(Theme::TEXT_PRIMARY.withAlpha(0.25f));
                     Renderer::drawDashedLine(sx, plotR.y, sx, plotR.bottom());
                     setColor(Theme::YELLOW);
                     Renderer::drawCircle(sx, sy, 4.5f, true);
@@ -360,7 +360,7 @@ private:
             y += 20;
         };
 
-        setColor(Theme::TEXT);
+        setColor(Theme::TEXT_PRIMARY);
         Renderer::drawText(x, y, "y = " + plotter.getFunction().getExpression(), Fonts::title());
         y += 22;
         if (!error.empty()) {
@@ -438,14 +438,14 @@ private:
         const GraphSegment& cs = plotter.getSegments()[seg];
         section("SEGMENT " + std::to_string(seg + 1) + " OF " + std::to_string(plotter.getSegments().size()),
                 "pixel " + std::to_string(st + 1) + " / " + std::to_string(cs.steps.size()));
-        setColor(Theme::TEXT);
+        setColor(Theme::TEXT_PRIMARY);
         Renderer::drawText(x, y, "world  " + Format::ptf(cs.worldStart.x, cs.worldStart.y) + " -> " +
                            Format::ptf(cs.worldEnd.x, cs.worldEnd.y), Fonts::mono());
         y += 15;
         Renderer::drawText(x, y, "screen " + Format::ptf(cs.screenStart.x, cs.screenStart.y, 1) + " -> " +
                            Format::ptf(cs.screenEnd.x, cs.screenEnd.y, 1), Fonts::mono());
         y += 22;
-        setColor(Theme::TEXT);
+        setColor(Theme::TEXT_PRIMARY);
         Renderer::drawWrapped(x, y, w, cs.steps[st].explanation, Fonts::mono(), maxY);
     }
 
@@ -478,7 +478,7 @@ private:
             "So the curve you see is built entirely from the classic",
             "rasterisation algorithms you can explore step by step."
         };
-        setColor(Theme::TEXT);
+        setColor(Theme::TEXT_PRIMARY);
         for (const char* l : lines) {
             Renderer::drawText(x, y, l, Fonts::body());
             y += 20;

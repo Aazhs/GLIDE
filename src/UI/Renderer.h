@@ -192,7 +192,7 @@ public:
         drawCircle(cx, cy, r + 2.5f, true);
         setColor(c);
         drawCircle(cx, cy, r, true);
-        setColor(hot ? Theme::TEXT : c.mix(Theme::TEXT, 0.5f));
+        setColor(hot ? Theme::TEXT_PRIMARY : c.mix(Theme::TEXT_PRIMARY, 0.5f));
         glLineWidth(1.5f);
         drawCircle(cx, cy, r + 2.0f, false);
         glLineWidth(1.0f);

@@ -19,7 +19,7 @@ private:
         for (const auto& it : items) {
             setColor(Theme::YELLOW);
             Renderer::drawText(x, y, it.first, Fonts::mono());
-            setColor(Theme::TEXT);
+            setColor(Theme::TEXT_PRIMARY);
             Renderer::drawText(x + 130, y, it.second, Fonts::body());
             y += 19;
         }
@@ -95,7 +95,7 @@ public:
         for (const auto& s : sw) {
             setColor(s.c);
             Renderer::drawRect(x2, yr - 10, 12, 12);
-            setColor(Theme::TEXT);
+            setColor(Theme::TEXT_PRIMARY);
             Renderer::drawText(x2 + 22, yr, s.text, Fonts::body());
             yr += 19;
         }

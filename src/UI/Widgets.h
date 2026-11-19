@@ -94,7 +94,7 @@ public:
         bool hover = enabled && canHover(r);
         Color fill = Theme::BTN;
         Color border = Theme::BTN_BORDER;
-        Color text = enabled ? Theme::TEXT : Theme::TEXT_FAINT;
+        Color text = enabled ? Theme::TEXT_PRIMARY : Theme::TEXT_FAINT;
 
         if (active) {
             Color ac = activeColor ? *activeColor : Theme::ACCENT;
@@ -141,7 +141,7 @@ public:
         Renderer::drawRect(track.x, barY, track.w * t, barH);
 
         float kx = track.x + track.w * t;
-        setColor(hover ? Theme::TEXT : fillColor.mix(Theme::TEXT, 0.4f));
+        setColor(hover ? Theme::TEXT_PRIMARY : fillColor.mix(Theme::TEXT_PRIMARY, 0.4f));
         Renderer::drawCircle(kx, track.cy(), hover ? 8.0f : 7.0f, true);
         setColor(Theme::PLOT_BG);
         Renderer::drawCircle(kx, track.cy(), 3.0f, true);

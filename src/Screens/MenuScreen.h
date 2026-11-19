@@ -57,7 +57,7 @@ public:
         setColor(Theme::ACCENT);
         Renderer::drawText((w - Renderer::textWidth(t, Fonts::title())) / 2, 62, t, Fonts::title());
         std::string sub = "Graphics Learning & Interactive Demonstration Environment";
-        setColor(Theme::TEXT);
+        setColor(Theme::TEXT_PRIMARY);
         Renderer::drawText((w - Renderer::textWidth(sub, Fonts::body())) / 2, 90, sub, Fonts::body());
         std::string sub2 = "See how classic rasterisation algorithms decide every single pixel";
         setColor(Theme::TEXT_DIM);

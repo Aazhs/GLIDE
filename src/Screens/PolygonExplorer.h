@@ -195,7 +195,7 @@ public:
             ui.button(Rect(80, bar.y + 11, 72, 32), animator.isPlaying() ? "Pause" : "Play", ID_PB_PLAY);
             ui.button(Rect(160, bar.y + 11, 64, 32), "Next >", ID_PB_NEXT);
             ui.button(Rect(232, bar.y + 11, 34, 32), ">|", ID_PB_LAST);
-            setColor(Theme::TEXT);
+            setColor(Theme::TEXT_PRIMARY);
             Renderer::drawText(278, bar.y + 31, std::to_string(animator.getRevealed()) + " / " +
                                std::to_string(animator.getTotal()), Fonts::body());
         }

@@ -306,7 +306,7 @@ protected:
 
         /* Setup values */
         y = drawSection(x, y, w, "SETUP");
-        setColor(Theme::TEXT);
+        setColor(Theme::TEXT_PRIMARY);
         for (const auto& line : algo.getSetupLines()) {
             y = Renderer::drawWrapped(x, y, w, line, Fonts::mono(), maxY);
         }
@@ -320,7 +320,7 @@ protected:
             for (int i = 0; i <= cur && i < (int)steps.size(); i++) sofar += steps[i].ops;
             OpCounts total = algo.getTotalOps();
             y = drawSection(x, y, w, "COST", "measured " + formatNs(measured(&algo)) + " per run");
-            setColor(Theme::TEXT);
+            setColor(Theme::TEXT_PRIMARY);
             if (cur >= 0 && cur < (int)steps.size()) {
                 y = Renderer::drawWrapped(x, y, w, "this step: " + steps[cur].ops.summary() + " = " +
                                           Format::num(steps[cur].ops.cost()) + " units", Fonts::mono(), maxY);
@@ -344,7 +344,7 @@ protected:
             Renderer::drawRect(x - 4, y - 13, w + 8, boxH);
             setColor(Theme::YELLOW);
             Renderer::drawRect(x - 4, y - 13, 3, boxH);
-            setColor(Theme::TEXT);
+            setColor(Theme::TEXT_PRIMARY);
             for (const auto& line : lines) {
                 Renderer::drawText(x + 4, y, line, Fonts::mono());
                 y += Renderer::lineHeight(Fonts::mono());
@@ -435,7 +435,7 @@ protected:
                 setColor(Theme::BTN_HOVER.withAlpha(0.6f));
                 Renderer::drawRect(rowRect);
             }
-            Color tc = flagged ? Theme::RED : (i == cur ? Theme::YELLOW : Theme::TEXT);
+            Color tc = flagged ? Theme::RED : (i == cur ? Theme::YELLOW : Theme::TEXT_PRIMARY);
             drawRow(y, rows[i], tc);
             y += rowH;
         }
@@ -451,7 +451,7 @@ protected:
         float x = panelR.x + 14, w = panelR.w - 28;
         float y = panelR.y + 26;
 
-        setColor(Theme::TEXT);
+        setColor(Theme::TEXT_PRIMARY);
         Renderer::drawText(x, y, heading, Fonts::title());
         y += 20;
         setColor(Theme::TEXT_DIM);
@@ -545,7 +545,7 @@ protected:
             Renderer::drawText(x, y, row.name, Fonts::small());
             for (int k = 0; k < n; k++) {
                 bool isBest = row.ranked && worst - best > 1e-4f && row.v[k] <= best + 1e-4f;
-                setColor(isBest ? Theme::GREEN : Theme::TEXT);
+                setColor(isBest ? Theme::GREEN : Theme::TEXT_PRIMARY);
                 Renderer::drawText(x + 112 + k * colW, y,
                                    Format::num(row.v[k], row.decimals) + (isBest ? " *" : ""), Fonts::mono());
             }
@@ -648,7 +648,7 @@ protected:
         Renderer::drawText(box.right() - 22 - Renderer::textWidth(score, Fonts::small()), y, score,
                            Fonts::small());
         y += 26;
-        setColor(Theme::TEXT);
+        setColor(Theme::TEXT_PRIMARY);
         y = Renderer::drawWrapped(x, y, w, quiz.question, Fonts::mono()) + 8;
 
         for (int i = 0; i < 3; i++) {

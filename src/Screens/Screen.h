@@ -106,7 +106,7 @@ public:
         float x = 16 + Renderer::textWidth("GLIDE", Fonts::title()) + 14;
         setColor(Theme::BORDER);
         Renderer::drawLine(x - 7, 14, x - 7, 34);
-        setColor(Theme::TEXT);
+        setColor(Theme::TEXT_PRIMARY);
         Renderer::drawText(x, 29, title, Fonts::body());
         x += Renderer::textWidth(title, Fonts::body()) + 12;
         setColor(Theme::TEXT_DIM);
@@ -140,7 +140,7 @@ public:
         Renderer::drawRect(bx, y - 9, bw, 11);
         setColor(c.withAlpha(0.85f));
         Renderer::drawRect(bx, y - 9, bw * MathUtils::clamp(frac, 0.0f, 1.0f), 11);
-        setColor(best ? Theme::GREEN : Theme::TEXT);
+        setColor(best ? Theme::GREEN : Theme::TEXT_PRIMARY);
         Renderer::drawText(bx + bw + 8, y, value + (best ? "  *" : ""), Fonts::small());
     }
 
@@ -169,7 +169,7 @@ public:
         /* Step counter */
         std::string counter = unit + " " + std::to_string(anim.getRevealed()) + " / " +
                               std::to_string(anim.getTotal());
-        setColor(anim.isComplete() ? Theme::GREEN : Theme::TEXT);
+        setColor(anim.isComplete() ? Theme::GREEN : Theme::TEXT_PRIMARY);
         Renderer::drawText(x, y + 20, counter, Fonts::body());
         x += std::max(96, Renderer::textWidth(counter, Fonts::body()) + 14);
 
