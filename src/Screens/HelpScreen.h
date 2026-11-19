@@ -68,6 +68,8 @@ public:
         yr = drawList(x2, yr, "Polygon Explorer", {
             { "1 - 5", "Choose a fill method" },
             { "C / D", "Load a concave polygon or diamond" },
+            { "X", "Start a custom polygon. Click to place corners." },
+            { "U / Enter", "Undo the last corner / close the custom polygon" },
             { "Click", "Set the starting cell for seed fill" },
             { "Space / N / P", "Play or step through the fill" },
         });

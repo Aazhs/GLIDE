@@ -79,6 +79,8 @@ glide.exe
 
 Open **Polygon Explorer** from the main menu or press **5**. Choose a fill method, click the grid to move the seed for boundary or flood fill, and use **Next** or **Play** to watch it fill. Scanline fill uses the polygon edges to fill one row at a time.
 
+Select **Custom** to draw your own polygon. Click at least three corners in order, use **Undo** if needed, then select **Close shape**. Choose any fill method and press **Play**.
+
 ## Controls
 
 | Key | Action |

@@ -34,15 +34,23 @@ inline bool contains(Cell cell) {
     return cell.x >= 0 && cell.x < WIDTH && cell.y >= 0 && cell.y < HEIGHT;
 }
 
-inline void drawOutline(Grid& grid, const std::vector<Cell>& vertices) {
+inline void drawOutline(Grid& grid, const std::vector<Cell>& vertices, bool sealDiagonals = false) {
+    const auto markBoundary = [&grid](Cell cell) {
+        if (contains(cell)) grid[cell.y][cell.x] = Colour::Boundary;
+    };
     for (size_t i = 0; i < vertices.size(); ++i) {
         const Cell a = vertices[i];
         const Cell b = vertices[(i + 1) % vertices.size()];
         BresenhamLine edge(Point(a.x, a.y), Point(b.x, b.y));
         edge.execute();
+        Cell previous = a;
         for (const Point& pixel : edge.getAllPoints()) {
             const Cell cell{pixel.pixelX(), pixel.pixelY()};
-            if (contains(cell)) grid[cell.y][cell.x] = Colour::Boundary;
+            // Join diagonally adjacent boundary cells so 8-connected fill cannot cross the outline.
+            if (sealDiagonals && cell.x != previous.x && cell.y != previous.y)
+                markBoundary({cell.x, previous.y});
+            markBoundary(cell);
+            previous = cell;
         }
     }
 }

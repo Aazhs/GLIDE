@@ -23,8 +23,8 @@ class PolygonExplorer : public Screen {
         {Method::Scanline, "Scanline", "Finds where each row crosses the polygon edges and fills the empty cells between each pair of crossings."}
     }};
 
-    enum Ids { ID_METHOD = 600, ID_CONCAVE = 605, ID_DIAMOND };
-    enum class Preset { Concave, Diamond };
+    enum Ids { ID_METHOD = 600, ID_CONCAVE = 605, ID_DIAMOND, ID_CUSTOM, ID_UNDO, ID_CLOSE };
+    enum class Preset { Concave, Diamond, Custom };
 
     Preset preset = Preset::Concave;
     size_t selected = 0;
@@ -36,6 +36,8 @@ class PolygonExplorer : public Screen {
     Rect gridRect;
     float cellSize = 0;
     bool rejectedSeed = false;
+    bool editing = false;
+    const char* draftError = nullptr;
 
     bool scanline() const { return methods[selected].value == Method::Scanline; }
 
@@ -49,6 +51,14 @@ class PolygonExplorer : public Screen {
     void loadPreset(Preset next) {
         preset = next;
         canvas = {};
+        editing = preset == Preset::Custom;
+        draftError = nullptr;
+        if (editing) {
+            vertices.clear();
+            steps.clear();
+            animator.reset(0, false);
+            return;
+        }
         if (preset == Preset::Concave) {
             vertices = {{4, 3}, {19, 3}, {19, 14}, {14, 14}, {14, 8}, {9, 8}, {9, 14}, {4, 14}};
             seed = {11, 5};
@@ -70,6 +80,40 @@ class PolygonExplorer : public Screen {
         }
         PolygonFill::drawOutline(canvas, vertices);
         recalculate();
+    }
+
+    void closeCustom() {
+        if (!editing) return;
+        if (vertices.size() < 3) {
+            draftError = "Place at least three corners.";
+            return;
+        }
+
+        PolygonFill::Grid outline{};
+        PolygonFill::drawOutline(outline, vertices, true);
+        const auto interior = PolygonFill::scanlineFill(vertices, outline);
+        if (interior.empty()) {
+            draftError = "Leave more space inside the polygon.";
+            return;
+        }
+
+        for (auto& row : outline)
+            for (auto& cell : row)
+                if (cell == Colour::Background) cell = Colour::Exterior;
+        for (const auto& step : interior)
+            for (const Cell cell : step.cells)
+                outline[cell.y][cell.x] = Colour::Background;
+
+        canvas = outline;
+        seed = interior[interior.size() / 2].cells.front();
+        editing = false;
+        recalculate();
+    }
+
+    void undoCorner() {
+        if (!editing || vertices.empty()) return;
+        vertices.pop_back();
+        draftError = nullptr;
     }
 
     Rect boundsFor(Cell cell) const {
@@ -105,6 +149,18 @@ class PolygonExplorer : public Screen {
                 Renderer::drawRect(boundsFor({x, y}).inset(0.5f));
             }
         }
+        if (editing) {
+            setColor(Theme::ACCENT2);
+            for (size_t i = 1; i < vertices.size(); ++i) {
+                const Rect a = boundsFor(vertices[i - 1]), b = boundsFor(vertices[i]);
+                Renderer::drawLine(a.cx(), a.cy(), b.cx(), b.cy());
+            }
+            for (const Cell vertex : vertices) {
+                const Rect bounds = boundsFor(vertex);
+                Renderer::drawCircle(bounds.cx(), bounds.cy(), cellSize * 0.22f, true, 16);
+            }
+            return;
+        }
         const int current = animator.currentIndex();
         for (int i = 0; i < animator.getRevealed(); ++i) {
             setColor(i == current ? Theme::YELLOW : Theme::ACCENT);
@@ -133,6 +189,17 @@ class PolygonExplorer : public Screen {
         const float limit = panel.bottom() - 12;
         float y = panel.y + 27;
         setColor(Theme::ACCENT);
+        if (editing) {
+            Renderer::drawText(x, y, "Draw a polygon", Fonts::title());
+            y = Renderer::drawWrapped(x, y + 25, width,
+                "Click grid cells to place corners in order. Use Undo to remove the last corner. Select Close shape when done, then choose a fill method.",
+                Fonts::body(), limit);
+            setColor(Theme::YELLOW);
+            Renderer::drawWrapped(x, y + 12, width,
+                draftError ? draftError : std::to_string(vertices.size()) + " corners placed.",
+                Fonts::body(), limit);
+            return;
+        }
         Renderer::drawText(x, y, methods[selected].label, Fonts::title());
         y = Renderer::drawWrapped(x, y + 25, width, methods[selected].explanation, Fonts::body(), limit);
         const char* hint = preset == Preset::Concave
@@ -149,7 +216,8 @@ class PolygonExplorer : public Screen {
         std::string status = "Press Next or Play to start.";
         const int current = animator.currentIndex();
         if (rejectedSeed) {
-            status = "Choose a cell away from the boundary.";
+            status = preset == Preset::Custom ? "Choose a cell inside the polygon."
+                                             : "Choose a cell away from the boundary.";
         } else if (current >= 0 && scanline()) {
             status = "Row " + std::to_string(steps[current].row) + ": " +
                      std::to_string(steps[current].cells.size()) + " cells filled.";
@@ -187,8 +255,19 @@ public:
                       true, w < 510 ? Fonts::small() : Fonts::body());
         }
         const float presetY = Layout::HEADER_H + Layout::TOOLBAR_H + 5;
-        ui.button(Rect(8, presetY, 120, 30), "Concave (C)", ID_CONCAVE, preset == Preset::Concave);
-        ui.button(Rect(136, presetY, 120, 30), "Diamond (D)", ID_DIAMOND, preset == Preset::Diamond);
+        const float presetW = std::clamp((w - 6 * Layout::GAP) / 5.0f, 48.0f, 120.0f);
+        const auto presetButton = [&](int column, const char* label, int id, bool active, bool enabled = true) {
+            const float x = Layout::GAP + column * (presetW + Layout::GAP);
+            ui.button(Rect(x, presetY, presetW, 30), label, id, active, enabled,
+                      w < 510 ? Fonts::small() : Fonts::body());
+        };
+        presetButton(0, "Concave", ID_CONCAVE, preset == Preset::Concave);
+        presetButton(1, "Diamond", ID_DIAMOND, preset == Preset::Diamond);
+        presetButton(2, preset == Preset::Custom ? "New shape" : "Custom", ID_CUSTOM, preset == Preset::Custom);
+        if (editing) {
+            presetButton(3, "Undo", ID_UNDO, false, !vertices.empty());
+            presetButton(4, w < 400 ? "Close" : "Close shape", ID_CLOSE, false, vertices.size() >= 3);
+        }
 
         const float panelW = std::min(310.0f, w * 0.36f);
         const float contentY = top + Layout::GAP;
@@ -215,19 +294,36 @@ public:
         if (handlePlaybackWidget(id, animator)) return;
         if (id >= ID_METHOD && id < ID_METHOD + static_cast<int>(methods.size())) {
             selected = static_cast<size_t>(id - ID_METHOD);
-            recalculate();
+            if (!editing) recalculate();
         } else if (id == ID_CONCAVE || id == ID_DIAMOND) {
             loadPreset(id == ID_CONCAVE ? Preset::Concave : Preset::Diamond);
+        } else if (id == ID_CUSTOM) {
+            loadPreset(Preset::Custom);
+        } else if (id == ID_UNDO) {
+            undoCorner();
+        } else if (id == ID_CLOSE) {
+            closeCustom();
         }
     }
 
     void onSlider(int id, float value) override { handlePlaybackSlider(id, value, animator); }
 
     void onMouseDown(int button, int x, int y) override {
-        if (button != GLUT_LEFT_BUTTON || scanline() || cellSize < 2 || !gridRect.contains(x, y)) return;
+        if (button != GLUT_LEFT_BUTTON || (!editing && scanline()) || cellSize < 2 || !gridRect.contains(x, y)) return;
         const Cell clicked{static_cast<int>((x - gridRect.x) / cellSize),
                            static_cast<int>((y - gridRect.y) / cellSize)};
-        if (canvas[clicked.y][clicked.x] == Colour::Boundary) {
+        if (editing) {
+            const auto sameCell = [clicked](Cell vertex) { return vertex.x == clicked.x && vertex.y == clicked.y; };
+            if (std::any_of(vertices.begin(), vertices.end(), sameCell)) {
+                draftError = "Choose a cell that is not already a corner.";
+                return;
+            }
+            vertices.push_back(clicked);
+            draftError = nullptr;
+            return;
+        }
+        const auto colour = canvas[clicked.y][clicked.x];
+        if (colour == Colour::Boundary || (preset == Preset::Custom && colour == Colour::Exterior)) {
             rejectedSeed = true;
             return;
         }
@@ -236,7 +332,7 @@ public:
     }
 
     int cursorFor(int x, int y) const override {
-        return !scanline() && cellSize >= 2 && gridRect.contains(x, y)
+        return (editing || !scanline()) && cellSize >= 2 && gridRect.contains(x, y)
              ? GLUT_CURSOR_CROSSHAIR : GLUT_CURSOR_LEFT_ARROW;
     }
 
@@ -248,7 +344,12 @@ public:
         switch (key) {
             case 'c': case 'C': loadPreset(Preset::Concave); return true;
             case 'd': case 'D': loadPreset(Preset::Diamond); return true;
-            case 13: case 10: animator.play(); return true;
+            case 'x': case 'X': loadPreset(Preset::Custom); return true;
+            case 8: case 127: case 'u': case 'U': undoCorner(); return editing;
+            case 13: case 10:
+                if (editing) closeCustom();
+                else animator.play();
+                return true;
             default: return handlePlaybackKey(key, animator);
         }
     }
