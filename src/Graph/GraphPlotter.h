@@ -28,89 +28,13 @@
 #define GLIDE_GRAPH_PLOTTER_H
 
 #include "GraphFunction.h"
+#include "CoordinateSystem.h"
 #include "../Algorithms/DDALine.h"
 #include "../Algorithms/BresenhamLine.h"
 #include "../Common/Point.h"
 #include "../Common/MathUtils.h"
 #include <vector>
 #include <string>
-
-/*
- * CoordinateSystem handles the conversion between:
- *   - Mathematical world coordinates (where x=2 means x equals 2)
- *   - Screen/pixel coordinates (where x=400 means 400 pixels from left)
- *
- * The transformation is:
- *   screenX = (worldX - panX) * zoom * scaleX + originScreenX
- *   screenY = (worldY - panY) * zoom * scaleY + originScreenY
- *
- * panX/panY: the world coordinate at the center of the screen
- * zoom: magnification factor
- * scaleX/scaleY: pixels per unit
- * originScreenX/Y: screen position of the origin
- */
-struct CoordinateSystem {
-    float panX;         // World x at screen center
-    float panY;         // World y at screen center
-    float zoom;         // Zoom level (1.0 = default)
-    float scaleX;       // Pixels per world unit (x)
-    float scaleY;       // Pixels per world unit (y)
-    int screenWidth;    // Screen width in pixels
-    int screenHeight;   // Screen height in pixels
-    int plotAreaX;      // Plot area left edge
-    int plotAreaY;      // Plot area top edge
-    int plotAreaW;      // Plot area width
-    int plotAreaH;      // Plot area height
-
-    CoordinateSystem() :
-        panX(0), panY(0), zoom(1.0f),
-        scaleX(40.0f), scaleY(40.0f),
-        screenWidth(1200), screenHeight(800),
-        plotAreaX(0), plotAreaY(60),
-        plotAreaW(850), plotAreaH(540)
-    {}
-
-    /* Convert world coordinate to screen coordinate */
-    float worldToScreenX(float worldX) const {
-        return plotAreaX + plotAreaW / 2.0f + (worldX - panX) * zoom * scaleX;
-    }
-
-    float worldToScreenY(float worldY) const {
-        return plotAreaY + plotAreaH / 2.0f + (worldY - panY) * zoom * scaleY;
-    }
-
-    /* Convert screen coordinate to world coordinate */
-    float screenToWorldX(float screenX) const {
-        return (screenX - plotAreaX - plotAreaW / 2.0f) / (zoom * scaleX) + panX;
-    }
-
-    float screenToWorldY(float screenY) const {
-        return (screenY - plotAreaY - plotAreaH / 2.0f) / (zoom * scaleY) + panY;
-    }
-
-    /* Get the visible world coordinate range */
-    float getVisibleMinX() const { return screenToWorldX((float)plotAreaX); }
-    float getVisibleMaxX() const { return screenToWorldX((float)(plotAreaX + plotAreaW)); }
-    float getVisibleMinY() const { return screenToWorldY((float)(plotAreaY + plotAreaH)); }
-    float getVisibleMaxY() const { return screenToWorldY((float)plotAreaY); }
-
-    /* Reset to default view */
-    void reset() {
-        panX = 0;
-        panY = 0;
-        zoom = 1.0f;
-    }
-
-    /* Zoom in/out by a factor */
-    void zoomIn()  { zoom *= 1.2f; if (zoom > 50.0f)  zoom = 50.0f; }
-    void zoomOut() { zoom /= 1.2f; if (zoom < 0.05f) zoom = 0.05f; }
-
-    /* Pan by a fraction of the visible area */
-    void pan(float dx, float dy) {
-        panX -= dx / (zoom * scaleX);
-        panY -= dy / (zoom * scaleY);
-    }
-};
 
 /*
  * Segment stores the algorithm steps for one line segment
@@ -135,6 +59,39 @@ private:
     int sampleCount;                    // Number of sample points
     bool useDDA;                        // true = DDA, false = Bresenham
     bool hasGraph;                      // Whether a graph has been computed
+
+    /*
+     * Liang-Barsky line clipping against the plot rectangle (expanded by a
+     * small margin). Modifies the endpoints in place.
+     * Returns false if the segment lies completely outside.
+     */
+    bool clipToPlotArea(float& x1, float& y1, float& x2, float& y2) const {
+        const float margin = 2.0f;
+        float xmin = coordSystem.plotAreaX - margin;
+        float ymin = coordSystem.plotAreaY - margin;
+        float xmax = (float)(coordSystem.plotAreaX + coordSystem.plotAreaW) + margin;
+        float ymax = (float)(coordSystem.plotAreaY + coordSystem.plotAreaH) + margin;
+
+        float dx = x2 - x1, dy = y2 - y1;
+        float p[4] = { -dx, dx, -dy, dy };
+        float q[4] = { x1 - xmin, xmax - x1, y1 - ymin, ymax - y1 };
+        float t0 = 0.0f, t1 = 1.0f;
+
+        for (int i = 0; i < 4; i++) {
+            if (p[i] == 0.0f) {
+                if (q[i] < 0.0f) return false;      // parallel and outside
+            } else {
+                float t = q[i] / p[i];
+                if (p[i] < 0.0f) { if (t > t1) return false; if (t > t0) t0 = t; }
+                else             { if (t < t0) return false; if (t < t1) t1 = t; }
+            }
+        }
+
+        float nx1 = x1 + t0 * dx, ny1 = y1 + t0 * dy;
+        float nx2 = x1 + t1 * dx, ny2 = y1 + t1 * dy;
+        x1 = nx1; y1 = ny1; x2 = nx2; y2 = ny2;
+        return true;
+    }
 
 public:
     GraphPlotter() : sampleCount(200), useDDA(true), hasGraph(false) {}
@@ -213,6 +170,24 @@ public:
             float sx2 = coordSystem.worldToScreenX(p2.x);
             float sy2 = coordSystem.worldToScreenY(p2.y);
 
+            /*
+             * Asymptote check: tan(x), 1/x etc. jump from +huge to -huge
+             * between two samples. Joining them would draw a false vertical
+             * line, so treat a jump taller than the whole plot as a break.
+             */
+            if (fabsf(sy2 - sy1) > 2.0f * coordSystem.plotAreaH &&
+                ((sy1 < coordSystem.plotAreaY && sy2 > coordSystem.plotAreaY + coordSystem.plotAreaH) ||
+                 (sy2 < coordSystem.plotAreaY && sy1 > coordSystem.plotAreaY + coordSystem.plotAreaH))) {
+                continue;
+            }
+
+            /*
+             * Clip the segment to the plot area (Liang-Barsky).
+             * Without this, a point far off-screen (e.g. x^9 at x = 10)
+             * would make the line algorithm walk millions of pixels.
+             */
+            if (!clipToPlotArea(sx1, sy1, sx2, sy2)) continue;
+
             Point screenP1(sx1, sy1);
             Point screenP2(sx2, sy2);
 
@@ -255,6 +230,16 @@ public:
         }
 
         hasGraph = true;
+    }
+
+    /* Evaluate the current function at x (NaN if undefined) */
+    float evaluateAt(float x) {
+        if (!function.isValid()) return std::numeric_limits<float>::quiet_NaN();
+        try {
+            return function.evaluate(x);
+        } catch (...) {
+            return std::numeric_limits<float>::quiet_NaN();
+        }
     }
 
     /* Clear the graph */

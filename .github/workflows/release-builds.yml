@@ -1,0 +1,100 @@
+name: Release builds
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows x64
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build with static FreeGLUT
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install freeglut:x64-windows-static
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+            "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            "-DVCPKG_TARGET_TRIPLET=x64-windows-static" `
+            "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build build --config Release --parallel
+      - name: Package executable
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist, package | Out-Null
+          Copy-Item build/Release/glide.exe package/glide.exe
+          Copy-Item "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows-static/share/freeglut/copyright" package/FreeGLUT-LICENSE.txt
+          Compress-Archive -Path package/* -DestinationPath dist/GLIDE-Windows-x64.zip
+      - uses: actions/upload-artifact@v7
+        with:
+          name: GLIDE-Windows-x64
+          path: dist/GLIDE-Windows-x64.zip
+          if-no-files-found: error
+
+  macos:
+    name: macOS universal
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build for Apple Silicon and Intel
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+            '-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64' \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
+          cmake --build build --parallel
+          architectures="$(lipo -archs build/glide)"
+          grep -qw arm64 <<< "$architectures"
+          grep -qw x86_64 <<< "$architectures"
+      - name: Package app bundle
+        run: |
+          mkdir -p 'package/GLIDE.app/Contents/MacOS' dist
+          cp build/glide 'package/GLIDE.app/Contents/MacOS/glide'
+          cp .github/release/GLIDE-Info.plist 'package/GLIDE.app/Contents/Info.plist'
+          plutil -lint 'package/GLIDE.app/Contents/Info.plist'
+          codesign --force --sign - 'package/GLIDE.app'
+          codesign --verify --strict 'package/GLIDE.app'
+          ditto -c -k --keepParent 'package/GLIDE.app' dist/GLIDE-macOS-universal.zip
+      - uses: actions/upload-artifact@v7
+        with:
+          name: GLIDE-macOS-universal
+          path: dist/GLIDE-macOS-universal.zip
+          if-no-files-found: error
+
+  linux:
+    name: Linux x64
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install graphics libraries and build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y freeglut3-dev libglu1-mesa-dev mesa-utils patchelf xauth xvfb
+      - name: Build and package
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+          mkdir -p package/GLIDE-Linux-x64/lib dist
+          install -m 755 build/glide package/GLIDE-Linux-x64/glide
+          read -r glut_name glut_library < <(ldd build/glide | awk '$1 ~ /^libglut[.]so[.]/ {print $1, $3; exit}')
+          test -f "$glut_library"
+          cp -L "$glut_library" "package/GLIDE-Linux-x64/lib/$glut_name"
+          cp /usr/share/doc/freeglut3/copyright package/GLIDE-Linux-x64/lib/FreeGLUT-LICENSE.txt
+          patchelf --set-rpath '$ORIGIN/lib' package/GLIDE-Linux-x64/glide
+          tar -C package -czf dist/GLIDE-Linux-x64.tar.gz GLIDE-Linux-x64
+      - name: Smoke test packaged program
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          result=0
+          xvfb-run -a timeout 5s package/GLIDE-Linux-x64/glide || result=$?
+          test "$result" -eq 124
+      - uses: actions/upload-artifact@v7
+        with:
+          name: GLIDE-Linux-x64
+          path: dist/GLIDE-Linux-x64.tar.gz
+          if-no-files-found: error

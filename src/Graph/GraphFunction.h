@@ -41,6 +41,8 @@
 #include <cmath>
 #include <vector>
 #include <stdexcept>
+#include <limits>
+#include <cctype>
 #include "../Common/Point.h"
 #include "../Common/MathUtils.h"
 
@@ -88,6 +90,12 @@ private:
         return false;
     }
 
+    /* True if the next character begins a factor with no operator before it */
+    bool startsImplicitProduct() const {
+        char c = peek();
+        return c == '(' || c == 'x' || c == 'X' || (c >= 'a' && c <= 'z');
+    }
+
     /*
      * RECURSIVE DESCENT PARSER
      * Each function corresponds to one grammar rule.
@@ -118,8 +126,9 @@ private:
     float parseTerm() {
         float result = parsePower();
 
-        while (peek() == '*' || peek() == '/') {
-            char op = consume();
+        while (peek() == '*' || peek() == '/' || startsImplicitProduct()) {
+            /* "2x", "3sin(x)", "x(x+1)" mean multiplication */
+            char op = startsImplicitProduct() ? '*' : consume();
             float right = parsePower();
             if (op == '*') {
                 result *= right;
@@ -242,7 +251,7 @@ private:
 
         if (pos == start) {
             throw std::runtime_error(
-                "Expected number at position " + std::to_string(pos)
+                "Expected a number at position " + std::to_string(pos + 1)
             );
         }
 
@@ -255,7 +264,7 @@ private:
         if (peek() != ch) {
             throw std::runtime_error(
                 "Expected '" + std::string(1, ch) +
-                "' at position " + std::to_string(pos)
+                "' at position " + std::to_string(pos + 1)
             );
         }
         consume();
@@ -274,7 +283,18 @@ public:
      */
     void setExpression(const std::string& expr) {
         expression = expr;
-        cleanExpr = expr;
+
+        /* Remove whitespace and lower-case, so "Sin( X ) - 3" works */
+        cleanExpr.clear();
+        for (char c : expr) {
+            if (c == ' ' || c == '\t') continue;
+            cleanExpr += (char)tolower((unsigned char)c);
+        }
+        if (cleanExpr.empty()) {
+            valid = false;
+            errorMessage = "Enter a function of x, e.g. sin(x)";
+            return;
+        }
         valid = false;
         errorMessage = "";
 
@@ -298,6 +318,12 @@ public:
         pos = 0;
         xValue = x;
         float result = parseExpression();
+        if (pos < cleanExpr.length()) {
+            throw std::runtime_error(
+                "Unexpected '" + std::string(1, cleanExpr[pos]) +
+                "' at position " + std::to_string(pos + 1)
+            );
+        }
         return result;
     }
 

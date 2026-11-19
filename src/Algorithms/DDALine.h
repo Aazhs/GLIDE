@@ -33,6 +33,8 @@
 
 #include "DrawingAlgorithm.h"
 #include "../Common/MathUtils.h"
+#include "../Common/Format.h"
+#include "../Common/Benchmark.h"
 #include <cmath>
 #include <sstream>
 
@@ -82,8 +84,8 @@ public:
     void execute() override {
         clear();
 
-        float dx = endPoint.x - startPoint.x;  // Δx
-        float dy = endPoint.y - startPoint.y;  // Δy
+        float dx = endPoint.x - startPoint.x;  // dx = x2 - x1
+        float dy = endPoint.y - startPoint.y;  // dy = y2 - y1
 
         /*
          * Determine the number of steps needed.
@@ -94,23 +96,41 @@ public:
             std::max(MathUtils::absf(dx), MathUtils::absf(dy))
         );
 
+        /* Setup cost: two subtractions, one comparison to find the major axis */
+        setupOps.floatAdd += 2;
+        setupOps.compare += 1;
+
+        bool verticalLine = (MathUtils::absf(dx) < 0.0001f);
+        float slope = verticalLine ? 0.0f : dy / dx;
+        std::string majorAxis = (MathUtils::absf(dx) >= MathUtils::absf(dy)) ? "x" : "y";
+
+        setupLines.push_back("P1 = " + Format::ptf(startPoint.x, startPoint.y) +
+                             "   P2 = " + Format::ptf(endPoint.x, endPoint.y));
+        setupLines.push_back("dx = x2 - x1 = " + Format::num(dx) +
+                             ",  dy = y2 - y1 = " + Format::num(dy));
+        setupLines.push_back(verticalLine ? std::string("m = undefined (vertical line)")
+                                          : "m = dy / dx = " + Format::num(slope));
+        setupLines.push_back("|dx| " + std::string(majorAxis == "x" ? ">=" : "<") +
+                             " |dy|  ->  major axis is " + majorAxis);
+        setupLines.push_back("steps = max(|dx|, |dy|) = " + std::to_string(numSteps));
+
         /* Handle degenerate case: start == end */
         if (numSteps == 0) {
             AlgorithmStep step;
             step.iteration = 1;
             step.x = startPoint.x;
             step.y = startPoint.y;
-            step.deltaX = 0;
-            step.deltaY = 0;
-            step.slope = 0;
-            step.explanation = "Start point equals end point. Plot single pixel.";
-            step.decision = "Single point";
-            step.plottedPoints.push_back(Point(
-                (float)MathUtils::roundToInt(startPoint.x),
-                (float)MathUtils::roundToInt(startPoint.y)
-            ));
+            Point pixel((float)MathUtils::roundToInt(startPoint.x),
+                        (float)MathUtils::roundToInt(startPoint.y));
+            step.explanation = "P1 equals P2, so the line is a\nsingle pixel: plot " +
+                               Format::px(pixel);
+            step.decision = "Plot " + Format::px(pixel);
+            step.plottedPoints.push_back(pixel);
+            step.tableCells = { "1", Format::num(step.x), Format::num(step.y), Format::px(pixel) };
+            step.ops.rounds = 2;
             steps.push_back(step);
-            allPoints.push_back(step.plottedPoints[0]);
+            allPoints.push_back(pixel);
+            measureLineQuality(startPoint, endPoint);
             return;
         }
 
@@ -118,30 +138,23 @@ public:
          * Calculate the increment per step.
          *
          * From the notes:
-         *   If |Δx| >= |Δy|: step x by 1, y increment = m = Δy/Δx
-         *   If |Δx| <  |Δy|: step y by 1, x increment = 1/m = Δx/Δy
+         *   If |dx| >= |dy|: step x by 1, y increment = m = dy/dx
+         *   If |dx| <  |dy|: step y by 1, x increment = 1/m = dx/dy
          *
-         * We generalize slightly: the increment is Δx/numSteps and Δy/numSteps.
-         * When |Δx| >= |Δy|, numSteps = |Δx|, so xIncrement = ±1 and
-         * yIncrement = Δy/|Δx| = ±m. This matches the notes exactly.
+         * We generalize slightly: the increment is dx/numSteps and dy/numSteps.
+         * When |dx| >= |dy|, numSteps = |dx|, so xIncrement = +-1 and
+         * yIncrement = dy/|dx| = +-m. This matches the notes exactly.
          * The sign is preserved naturally from dx and dy.
          */
         float xIncrement = dx / static_cast<float>(numSteps);
         float yIncrement = dy / static_cast<float>(numSteps);
-
-        /* Calculate slope for display purposes */
-        float slope = 0.0f;
-        bool verticalLine = (MathUtils::absf(dx) < 0.0001f);
-        if (!verticalLine) {
-            slope = dy / dx;
-        }
-
-        /* Determine which axis is major for explanation */
-        std::string majorAxis = (MathUtils::absf(dx) >= MathUtils::absf(dy))
-                                ? "X" : "Y";
+        setupOps.floatDiv += 2;
+        setupLines.push_back("x_inc = dx / steps = " + Format::num(xIncrement));
+        setupLines.push_back("y_inc = dy / steps = " + Format::num(yIncrement));
 
         float x = startPoint.x;
         float y = startPoint.y;
+        float prevX = x, prevY = y;
 
         /*
          * Generate points: iterate from step 0 to numSteps.
@@ -163,41 +176,80 @@ public:
             );
             step.plottedPoints.push_back(pixel);
 
+            /* Cost of this iteration: round x and y, loop test, then x += , y += */
+            step.ops.rounds = 2;
+            step.ops.compare = 1;
+            if (i < numSteps) step.ops.floatAdd = 2;
+
             /* Build explanation text */
             std::ostringstream oss;
             if (i == 0) {
-                oss << "Starting point: (" << x << ", " << y << ")\n";
-                oss << "dx = " << dx << ", dy = " << dy << "\n";
-                if (verticalLine) {
-                    oss << "Vertical line (slope undefined)\n";
-                } else {
-                    oss << "Slope m = " << slope << "\n";
-                }
-                oss << "Major axis: " << majorAxis << "\n";
-                oss << "Steps needed: " << numSteps << "\n";
-                oss << "x increment = " << xIncrement << "\n";
-                oss << "y increment = " << yIncrement;
+                oss << "Start at P1:\n";
+                oss << "  x = " << Format::num(x) << ",  y = " << Format::num(y) << "\n";
             } else {
-                oss << "Step " << i << ":\n";
-                oss << "x = " << (x - xIncrement) << " + " << xIncrement
-                    << " = " << x << "\n";
-                oss << "y = " << (y - yIncrement) << " + " << yIncrement
-                    << " = " << y << "\n";
-                oss << "Round to pixel: " << pixel.toPixelString();
+                oss << "Add the increments:\n";
+                oss << "  x = " << Format::num(prevX) << " + " << Format::num(xIncrement)
+                    << " = " << Format::num(x) << "\n";
+                oss << "  y = " << Format::num(prevY) << " + " << Format::num(yIncrement)
+                    << " = " << Format::num(y) << "\n";
+            }
+            oss << "Round to nearest pixel:\n";
+            oss << "  (round(" << Format::num(x) << "), round(" << Format::num(y)
+                << ")) = " << Format::px(pixel);
+            if (i == numSteps) {
+                oss << "\nReached P2 - line complete.";
             }
             step.explanation = oss.str();
-
-            std::ostringstream decOss;
-            decOss << "Plot pixel " << pixel.toPixelString();
-            step.decision = decOss.str();
+            step.decision = "Plot " + Format::px(pixel);
+            step.tableCells = { std::to_string(i + 1), Format::num(x), Format::num(y),
+                                Format::px(pixel) };
 
             steps.push_back(step);
             allPoints.push_back(pixel);
 
             /* Increment for next step */
+            prevX = x;
+            prevY = y;
             x += xIncrement;
             y += yIncrement;
         }
+
+        measureLineQuality(startPoint, endPoint);
+    }
+
+    /*
+     * Lean version of the same algorithm, used only for timing.
+     * Writes (x, y) pairs to 'out' and returns the number of pixels.
+     */
+    static int rasterize(float x1, float y1, float x2, float y2, int* out) {
+        float dx = x2 - x1, dy = y2 - y1;
+        int n = (int)std::max(fabsf(dx), fabsf(dy));
+        if (n == 0) {
+            out[0] = (int)roundf(x1); out[1] = (int)roundf(y1);
+            return 1;
+        }
+        float xi = dx / n, yi = dy / n;
+        float x = x1, y = y1;
+        for (int i = 0; i <= n; i++) {
+            out[2 * i]     = (int)roundf(x);
+            out[2 * i + 1] = (int)roundf(y);
+            x += xi;
+            y += yi;
+        }
+        return n + 1;
+    }
+
+    double benchmarkNs() const override {
+        std::vector<int> buf(2 * (getStepCount() + 2));
+        Point a = startPoint, b = endPoint;
+        return Bench::nsPerCall([&]() {
+            int n = rasterize(a.x, a.y, b.x, b.y, buf.data());
+            return n + buf[2 * (n - 1)];
+        });
+    }
+
+    std::vector<std::string> getTableColumns() const override {
+        return { "#", "x", "y", "plot" };
     }
 };
 

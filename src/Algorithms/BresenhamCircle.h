@@ -26,11 +26,10 @@
  *   Continue while x < y
  *
  * 8-WAY SYMMETRY:
- * From a single calculated point (x,y), we get all 8 octant points:
- *   ( x,  y)   ( y,  x)
- *   (-x,  y)   (-y,  x)
- *   (-x, -y)   (-y, -x)
- *   ( x, -y)   ( y, -x)
+ * From a single calculated point (x,y), we get all 8 octant points
+ * using the standard ordering as per course notes:
+ *   (-x, -y)   ( y, -x)   (-y,  x)   ( x,  y)
+ *   (-x,  y)   (-y, -x)   ( y,  x)   ( x, -y)
  *
  * This means we only need to calculate points in one octant
  * (from 0 to 45 degrees) and reflect to get the full circle.
@@ -44,6 +43,8 @@
 
 #include "DrawingAlgorithm.h"
 #include "../Common/MathUtils.h"
+#include "../Common/Format.h"
+#include "../Common/Benchmark.h"
 #include <cmath>
 #include <sstream>
 
@@ -56,8 +57,9 @@ private:
      * Generate all 8 symmetric points from a single calculated point.
      *
      * The 8-way symmetry of a circle means that if (x,y) is on the circle,
-     * then so are all reflections across the x-axis, y-axis, and y=x line:
-     *   (x,y)  (y,x)  (-x,y)  (-y,x)  (-x,-y)  (-y,-x)  (x,-y)  (y,-x)
+     * then so are all reflections across the x-axis, y-axis, and y=x line.
+     * Standard ordering as per course notes:
+     *   (-x,-y)  (y,-x)  (-y,x)  (x,y)  (-x,y)  (-y,-x)  (y,x)  (x,-y)
      *
      * Each point is offset by the circle's center.
      */
@@ -66,14 +68,14 @@ private:
         int cy = MathUtils::roundToInt(center.y);
 
         std::vector<Point> points;
-        points.push_back(Point((float)(cx + x), (float)(cy + y)));   // ( x,  y)
-        points.push_back(Point((float)(cx + y), (float)(cy + x)));   // ( y,  x)
-        points.push_back(Point((float)(cx - x), (float)(cy + y)));   // (-x,  y)
-        points.push_back(Point((float)(cx - y), (float)(cy + x)));   // (-y,  x)
         points.push_back(Point((float)(cx - x), (float)(cy - y)));   // (-x, -y)
-        points.push_back(Point((float)(cx - y), (float)(cy - x)));   // (-y, -x)
-        points.push_back(Point((float)(cx + x), (float)(cy - y)));   // ( x, -y)
         points.push_back(Point((float)(cx + y), (float)(cy - x)));   // ( y, -x)
+        points.push_back(Point((float)(cx - y), (float)(cy + x)));   // (-y,  x)
+        points.push_back(Point((float)(cx + x), (float)(cy + y)));   // ( x,  y)
+        points.push_back(Point((float)(cx - x), (float)(cy + y)));   // (-x,  y)
+        points.push_back(Point((float)(cx - y), (float)(cy - x)));   // (-y, -x)
+        points.push_back(Point((float)(cx + y), (float)(cy + x)));   // ( y,  x)
+        points.push_back(Point((float)(cx + x), (float)(cy - y)));   // ( x, -y)
         return points;
     }
 
@@ -127,11 +129,20 @@ public:
          * d = 3 - 2r
          */
         int d = 3 - 2 * r;
+        setupOps.intShift += 1;
+        setupOps.intAdd += 1;
+
+        setupLines.push_back("Centre = " + Format::px(center) + ",  r = " + std::to_string(r));
+        setupLines.push_back("Start: x = 0, y = r = " + std::to_string(r));
+        setupLines.push_back("d0 = 3 - 2r = 3 - " + std::to_string(2 * r) + " = " + std::to_string(d));
+        setupLines.push_back("d < 0 :  d += 4x + 6          (x+1)");
+        setupLines.push_back("d >= 0:  d += 4(x - y) + 10   (x+1, y-1)");
+        setupLines.push_back("Repeat while x <= y, mirror to 8 octants.");
 
         int iteration = 0;
 
         /*
-         * Main loop: compute points in the first octant (x < y)
+         * Main loop: compute points in the first octant (x <= y)
          * and generate all 8 symmetric points at each step.
          */
         while (x <= y) {
@@ -148,39 +159,36 @@ public:
             std::vector<Point> symPoints = getSymmetricPoints(x, y);
             step.symmetricPoints = symPoints;
             step.plottedPoints = symPoints;
-
-            /* Add all symmetric points to the full point list */
             for (const auto& p : symPoints) {
                 allPoints.push_back(p);
             }
 
-            /* Build explanation */
             std::ostringstream oss;
-            if (iteration == 1) {
-                oss << "Bresenham Circle: center = " << center.toString()
-                    << ", radius = " << r << "\n";
-                oss << "Start: x = 0, y = r = " << r << "\n";
-                oss << "Initial d = 3 - 2r = 3 - " << (2*r) << " = " << d << "\n";
-                oss << "Plot 8 symmetric points from (" << x << ", " << y << ")";
-            } else {
-                oss << "Iteration " << iteration << ": x = " << x
-                    << ", y = " << y << ", d = " << d;
-            }
+            oss << "Octant point " << Format::pt(x, y) << "   (d = " << d << ")\n";
+            oss << "Plot it + 7 mirrors (centre added):\n";
+            oss << Format::pointRows(symPoints, 4) << "\n";
 
-            /* Decision logic */
-            std::ostringstream decOss;
             int oldD = d;
+            int oldX = x, oldY = y;
+            std::string action;
+
+            /* Cost: 16 adds for the 8 mirrors, loop test, d < 0 test, x + 1 */
+            step.ops.intAdd = 16 + 1;
+            step.ops.compare = 2;
 
             if (d < 0) {
+                step.ops.intShift += 1;   // 4x
+                step.ops.intAdd += 2;     // + 4x + 6
                 /*
                  * From the notes:
                  *   d < 0: move only in x direction
                  *   d = d + 4x + 6
                  */
-                decOss << "d = " << d << " < 0\n";
-                decOss << "Decision: move only in x direction\n";
                 d = d + 4 * x + 6;
-                decOss << "d = " << oldD << " + 4*" << x << " + 6 = " << d;
+                oss << "d = " << oldD << " < 0  ->  y stays\n";
+                oss << "  d = d + 4x + 6 = " << oldD << " + " << (4 * oldX)
+                    << " + 6 = " << d << "\n";
+                action = "x+1";
             } else {
                 /*
                  * From the notes:
@@ -188,37 +196,66 @@ public:
                  *   d = d + 4(x - y) + 10
                  *   y = y - 1
                  */
-                decOss << "d = " << d << " >= 0\n";
-                decOss << "Decision: move in x AND decrease y\n";
                 d = d + 4 * (x - y) + 10;
-                decOss << "d = " << oldD << " + 4*(" << x << " - " << y
-                       << ") + 10 = " << d << "\n";
                 y = y - 1;
-                decOss << "y decremented to " << y;
+                step.ops.intShift += 1;   // 4(x - y)
+                step.ops.intAdd += 4;     // x - y, two adds, y - 1
+                oss << "d = " << oldD << " >= 0  ->  y = y - 1\n";
+                oss << "  d = d + 4(x-y) + 10 = " << oldD << " + "
+                    << (4 * (oldX - oldY)) << " + 10 = " << d << "\n";
+                action = "x+1 y-1";
             }
 
             /* x always increments */
             x = x + 1;
 
-            oss << "\n" << decOss.str();
-            oss << "\nx incremented to " << x;
-
-            /* Show the 8 symmetric points */
-            oss << "\n\n8-way symmetric points:";
-            oss << "\n  ( x,  y) = (" << step.x << ", " << step.y << ")";
-            oss << "\n  ( y,  x) = (" << step.y << ", " << step.x << ")";
-            oss << "\n  (-x,  y) = (" << -step.x << ", " << step.y << ")";
-            oss << "\n  (-y,  x) = (" << -step.y << ", " << step.x << ")";
-            oss << "\n  (-x, -y) = (" << -step.x << ", " << -step.y << ")";
-            oss << "\n  (-y, -x) = (" << -step.y << ", " << -step.x << ")";
-            oss << "\n  ( x, -y) = (" << step.x << ", " << -step.y << ")";
-            oss << "\n  ( y, -x) = (" << step.y << ", " << -step.x << ")";
+            if (x <= y) {
+                oss << "x = x + 1.  Next: " << Format::pt(x, y);
+            } else {
+                oss << "Next x = " << x << " > y = " << y << ":\noctant complete.";
+            }
 
             step.explanation = oss.str();
             step.decision = (oldD < 0) ? "d < 0: x only" : "d >= 0: x and y";
+            step.tableCells = { std::to_string(iteration), std::to_string(oldX),
+                                std::to_string(oldY), std::to_string(oldD), action };
 
             steps.push_back(step);
         }
+
+        measureCircleQuality(Point((float)MathUtils::roundToInt(center.x),
+                                   (float)MathUtils::roundToInt(center.y)), (float)r);
+    }
+
+    /* Lean version of the same algorithm, used only for timing */
+    static int rasterize(int cx, int cy, int r, int* out) {
+        int x = 0, y = r, d = 3 - 2 * r, n = 0;
+        while (x <= y) {
+            writeMirrors8(cx, cy, x, y, out + 16 * n);
+            n++;
+            if (d < 0) {
+                d += 4 * x + 6;
+            } else {
+                d += 4 * (x - y) + 10;
+                y--;
+            }
+            x++;
+        }
+        return n;
+    }
+
+    double benchmarkNs() const override {
+        std::vector<int> buf(16 * (getStepCount() + 4));
+        int cx = MathUtils::roundToInt(center.x), cy = MathUtils::roundToInt(center.y);
+        int r = MathUtils::roundToInt(radiusVal);
+        return Bench::nsPerCall([&]() {
+            int n = rasterize(cx, cy, r, buf.data());
+            return n + buf[16 * n - 1];
+        });
+    }
+
+    std::vector<std::string> getTableColumns() const override {
+        return { "#", "x", "y", "d", "next" };
     }
 };
 

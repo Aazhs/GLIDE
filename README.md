@@ -1,6 +1,6 @@
 # GLIDE - Graphics Learning & Interactive Demonstration Environment
 
-An educational OpenGL application that combines a simple graph plotting tool with interactive visualization of classical computer graphics algorithms.
+An educational OpenGL application for exploring line drawing, circle drawing, polygon filling, and graph plotting.
 
 ![C++](https://img.shields.io/badge/C++-17-blue) ![OpenGL](https://img.shields.io/badge/OpenGL-GLUT-green)
 
@@ -23,12 +23,24 @@ GLIDE demonstrates how classical rasterization algorithms work by:
 | Bresenham Line | Line | Integer-only decision variable |
 | DDA Circle | Circle | Parametric derivatives dθ = 1/r |
 | Bresenham Circle | Circle | 8-way symmetry with integer decisions |
+| Midpoint Circle | Circle | Chooses each pixel using a midpoint test |
+| Boundary Fill | Polygon | Stops at the boundary colour, with 4 or 8 neighbours |
+| Flood Fill | Polygon | Replaces the seed colour, with 4 or 8 neighbours |
+| Scanline Fill | Polygon | Fills between edge intersections on each row |
 
 Algorithm implementations are based on the algorithms taught in the provided course notes.
 
 ## Quick Start
 
-### macOS / Linux
+Download GLIDE for Windows, macOS, or Linux from [GitHub Releases](https://github.com/Aazhs/GLIDE/releases).
+
+- **Windows x64** — Extract the ZIP and open `glide.exe`.
+- **macOS 12 or later** — Extract the ZIP and open `GLIDE.app` on Apple Silicon or Intel.
+- **Linux x64** — Extract the archive and run `./glide` from the extracted folder. The build targets Ubuntu 22.04 or later and needs an X11 or XWayland desktop, OpenGL, and GLU.
+
+### Build from source
+
+#### macOS / Linux
 ```bash
 mkdir build && cd build
 cmake ..
@@ -36,16 +48,16 @@ cmake --build .
 ./glide
 ```
 
-### Windows (Visual Studio)
+#### Windows (Visual Studio)
 ```cmd
 vcpkg install freeglut:x64-windows
 mkdir build && cd build
-cmake .. -G "Visual Studio 17 2022" -A x64
+cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE="%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake"
 cmake --build . --config Release
 .\Release\glide.exe
 ```
 
-### Windows (MinGW)
+#### Windows (MinGW)
 ```cmd
 mkdir build && cd build
 cmake .. -G "MinGW Makefiles"
@@ -60,15 +72,19 @@ glide.exe
 - **Graph Plotter**: Enter mathematical functions, plot using DDA or Bresenham
 - **Algorithm Explorer**: Step-by-step visualization of line algorithms  
 - **Circle Explorer**: Step-by-step visualization of circle algorithms
+- **Polygon Explorer**: Pick a fill method and watch pixels or rows fill step by step.
 - **Pixel Grid Mode**: See individual raster cells being selected
 - **Quiz Mode**: Test your understanding of algorithm decisions
 - **How It Works**: Explains the rendering pipeline
+
+Open **Polygon Explorer** from the main menu or press **5**. Choose a fill method, click the grid to move the seed for boundary or flood fill, and use **Next** or **Play** to watch it fill. Scanline fill uses the polygon edges to fill one row at a time.
 
 ## Controls
 
 | Key | Action |
 |-----|--------|
-| 1-5 | Menu navigation |
+| 1–5 | Open a tool or Help from the main menu |
+| 6 | Exit from the main menu |
 | +/- | Zoom in/out |
 | Arrow keys | Pan view |
 | R | Reset view |

@@ -17,6 +17,7 @@
 #define GLIDE_ALGORITHM_STEP_H
 
 #include "Point.h"
+#include "OpCounts.h"
 #include <string>
 #include <vector>
 
@@ -52,6 +53,16 @@ struct AlgorithmStep {
      * can highlight them individually.
      */
     std::vector<Point> symmetricPoints;
+
+    /*
+     * One row of the iteration table shown in the explorer side panel
+     * (the same table students write by hand in exams). The column
+     * headings come from DrawingAlgorithm::getTableColumns().
+     */
+    std::vector<std::string> tableCells;
+
+    /* Arithmetic performed during this step (see OpCounts.h) */
+    OpCounts ops;
 
     AlgorithmStep() :
         iteration(0),

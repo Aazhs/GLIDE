@@ -40,10 +40,9 @@ int main(int argc, char** argv) {
     glutMotionFunc(motionCallback);
     glutPassiveMotionFunc(passiveMotionCallback);
 
-    /* Start the animation timer.
-     * This fires periodically to advance the step-by-step animation.
-     * The timer re-registers itself to keep running. */
-    glutTimerFunc(app.getAnimSpeed(), timerCallback, 0);
+    /* Start the ~60 Hz timer that drives all animations.
+     * It re-registers itself to keep running. */
+    glutTimerFunc(Application::TICK_MS, timerCallback, 0);
 
     std::cout << "======================================================" << std::endl;
     std::cout << "  GLIDE - Graphics Learning & Interactive              " << std::endl;
@@ -55,6 +54,13 @@ int main(int argc, char** argv) {
     std::cout << "    2. Bresenham Line Drawing" << std::endl;
     std::cout << "    3. DDA Circle Drawing" << std::endl;
     std::cout << "    4. Bresenham Circle Drawing" << std::endl;
+    std::cout << "    5. Midpoint Circle Drawing" << std::endl;
+    std::cout << "    6. Boundary Fill (4- and 8-connected)" << std::endl;
+    std::cout << "    7. Flood Fill (4- and 8-connected)" << std::endl;
+    std::cout << "    8. Scanline Polygon Fill" << std::endl;
+    std::cout << "    6. Boundary Fill (4- and 8-connected)" << std::endl;
+    std::cout << "    7. Flood Fill (4- and 8-connected)" << std::endl;
+    std::cout << "    8. Scanline Polygon Fill" << std::endl;
     std::cout << std::endl;
     std::cout << "  Algorithm implementations are based on the" << std::endl;
     std::cout << "  algorithms taught in the provided course notes." << std::endl;
